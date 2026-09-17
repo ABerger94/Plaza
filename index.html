@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>PLAZA — Cartel Empire</title>
+<style>
+:root{
+  --bg:#0a0d0a; --panel:#12170f; --panel2:#1a2214; --line:#2a3324;
+  --gold:#d4af37; --gold-dim:#8f7423; --text:#ece7d4; --dim:#9b9784;
+  --red:#e05244; --green:#5da85a; --blue:#5aa9e0;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.45}
+#app{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+header{background:linear-gradient(180deg,#141a10,#0d110b);border-bottom:2px solid var(--gold-dim);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20}
+header h1{margin:0;font-size:22px;letter-spacing:4px;color:var(--gold);font-weight:800}
+header h1 small{display:block;font-size:10px;letter-spacing:2px;color:var(--dim);font-weight:400}
+main{flex:1;padding:12px 12px 96px}
+#tabs{position:fixed;bottom:0;left:0;right:0;z-index:20;background:#0d110b;border-top:1px solid var(--line);display:flex;max-width:480px;margin:0 auto;padding-bottom:env(safe-area-inset-bottom)}
+#tabs button{flex:1;background:none;border:none;color:var(--dim);font-size:10.5px;padding:10px 2px;min-height:58px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+#tabs button .ico{font-size:18px}
+#tabs button.active{color:var(--gold)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.card h3{margin:0 0 8px;font-size:14px;color:var(--gold);letter-spacing:1px;text-transform:uppercase}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+.stat .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.stat .val{font-size:20px;font-weight:700;color:var(--text)}
+.stat .val.gold{color:var(--gold)}
+.btn{display:inline-block;border:none;border-radius:10px;min-height:44px;padding:10px 16px;font-size:15px;font-weight:700;cursor:pointer;background:var(--gold);color:#171204}
+.btn:active{transform:scale(.97)}
+.btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.btn.danger{background:#3a1410;color:#ff8a7a;border:1px solid #5a201a}
+.btn.small{min-height:38px;padding:7px 12px;font-size:13px}
+.btn.block{width:100%;margin-top:8px}
+.btn:disabled{opacity:.4;cursor:default}
+input[type=number],select{background:#0c100a;color:var(--text);border:1px solid var(--line);border-radius:8px;min-height:44px;padding:8px 10px;font-size:16px;width:100%}
+select{width:auto}
+.numrow{display:flex;gap:8px;align-items:center;margin:8px 0}
+.numrow input{flex:1}
+.heatbar{height:14px;background:#1c130f;border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+.heatbar>div{height:100%;transition:width .3s}
+.chip{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:4px 12px;margin:2px;font-size:13px}
+.badge{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:2px 8px;letter-spacing:.5px}
+.b-you{background:#1d3a1a;color:#8fe08a}
+.b-rival{background:#3a1410;color:#ff9a8a}
+.b-neutral{background:#2a2a2a;color:#c9c9c9}
+#log{max-height:260px;overflow-y:auto}
+#log div{padding:6px 0;border-bottom:1px solid #1c221a;font-size:13.5px}
+#log .t{color:var(--dim);font-size:11px;margin-right:6px}
+.good{color:var(--green)} .bad{color:var(--red)} .dim{color:var(--dim)} .goldt{color:var(--gold)}
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+#modal-overlay.open{display:flex}
+#modal{background:var(--panel);border:1px solid var(--gold-dim);border-radius:14px;max-width:420px;width:100%;padding:18px;max-height:85vh;overflow-y:auto}
+#modal h2{margin:0 0 10px;color:var(--gold);font-size:19px;letter-spacing:1px}
+#modal p{margin:8px 0}
+#modal .choices{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+#gameover{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.92);padding:20px;text-align:center}
+#gameover.open{display:flex}
+#gameover h2{font-size:28px;letter-spacing:3px;margin:0 0 12px}
+select.slotpick{flex:1;min-width:0}
+.kv{display:flex;justify-content:space-between;padding:3px 0;font-size:14px}
+.kv span:last-child{font-weight:600}
+.est{font-size:12px;color:var(--dim)}
+hr.sep{border:none;border-top:1px solid var(--line);margin:10px 0}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>PLAZA<small>CARTEL EMPIRE</small></h1>
+    <button class="btn secondary small" onclick="G.newGameAsk()">New Game</button>
+  </header>
+  <main id="screen"></main>
+  <nav id="tabs"></nav>
+</div>
+<div id="modal-overlay"><div id="modal"></div></div>
+<div id="gameover"><div><h2 id="go-title"></h2><p id="go-reason" class="dim"></p><p id="go-stats" class="dim"></p><button class="btn block" onclick="G.newGame()">New Empire</button></div></div>
+<script>
+'use strict';
+/* ============================================================
+   PLAZA — cartel empire manager. Single file, zero dependencies.
+   Save key: plaza_save_v1
+   ============================================================ */
+const SAVE_KEY = 'plaza_save_v1';
+const SAVE_VERSION = 1;
+
+const DRUGS = {
+  weed:    { name:'Weed',    cost:50,  base:100,  heat10:2, output:30, bulky:true,
+             blurb:'Safe money. Bulky product: +5% interception on routes.' },
+  mdma:    { name:'MDMA',    cost:120, base:300,  heat10:2, output:18,
+             blurb:'Party drug. Festival season pays x1.8.' },
+  meth:    { name:'Meth',    cost:200, base:450,  heat10:3, output:14, volatile:true,
+             blurb:'The workhorse. Labs can explode (3%/week).' },
+  cocaine: { name:'Cocaine', cost:500, base:1100, heat10:5, output:12, buyOnly:true,
+             blurb:'The money standard. Production needs a captured coke lab.' },
+  heroin:  { name:'Heroin',  cost:400, base:900,  heat10:4, output:0, buyOnly:true, steady:true,
+             blurb:'Steady demand. Price barely moves (+/-8%).' },
+  fentanyl:{ name:'Fentanyl',cost:300, base:1200, heat10:6, output:0, buyOnly:true, od:true,
+             blurb:'Huge margins. Holding 20+ risks ODs (+heat).' }
+};
+const PRODUCIBLE = ['weed','mdma','meth','cocaine']; // cocaine only when S.cokeLab
+
+const ROUTES = [
+  { id:'local',    name:'Local Streets', mult:1.0,  risk:0.05, blurb:'Safe. Thin margins.' },
+  { id:'regional', name:'Regional',      mult:1.25, risk:0.12, blurb:'Better money, some eyes.' },
+  { id:'cross',    name:'Cross-Border',  mult:1.6,  risk:0.25, blurb:'Serious money. Serious risk.' }
+];
+
+const RIVALS = {
+  buitres: { name:'Los Buitres',        tag:'The Vultures — AGGRESSIVE',
+             desc:'Ex-enforcers who pick apart the weak. They attack often and expand fast.' },
+  serrano: { name:'La Familia Serrano', tag:'Old money — ENTRENCHED',
+             desc:'Three generations deep. Huge garrisons, endless bribes, rarely strikes first.' },
+  dientes: { name:'Los Dientes',        tag:'The Teeth — SCHEMER',
+             desc:'They undercut your prices and hijack your shipments. Watch your back.' }
+};
+// per-rival weekly behavior weights
+const AI = {
+  buitres:{ attack:0.30, expand:0.40, scheme:0.05, truce:0.03 },
+  serrano:{ attack:0.06, expand:0.55, scheme:0.02, truce:0.05 },
+  dientes:{ attack:0.15, expand:0.30, scheme:0.32, truce:0.03 }
+};
+const TRAITS = {
+  urban:     { name:'Urban',      desc:'Local street price +10%' },
+  rural:     { name:'Rural',      desc:'Heat decay +1/wk when laying low' },
+  port:      { name:'Port',       desc:'Route interception -8%' },
+  industrial:{ name:'Industrial', desc:'+1 lab slot on this plaza' },
+  border:    { name:'Border',     desc:'Cross-border price +15%' }
+};
+
+const PLAZA_DEFS = [
+  { id:'southside', name:'Southside',          slots:2, owner:'player',  trait:'urban' },
+  { id:'market',    name:'The Market',         slots:1, owner:'neutral', price:15000, trait:'rural' },
+  { id:'portside',  name:'Portside',           slots:2, owner:'neutral', price:35000, trait:'port' },
+  { id:'railyard',  name:'Railyard',           slots:2, owner:'buitres', garrison:7,  trait:'industrial' },
+  { id:'oldtown',   name:'Old Town',           slots:1, owner:'buitres', garrison:5,  trait:'urban' },
+  { id:'hilltop',   name:'Hilltop',            slots:2, owner:'serrano', garrison:9,  trait:'rural', cokeLab:true },
+  { id:'strip',     name:'The Strip',          slots:1, owner:'serrano', garrison:7,  trait:'port' },
+  { id:'warehouse', name:'Warehouse District', slots:3, owner:'dientes', garrison:10, trait:'industrial', cokeLab:true },
+  { id:'border',    name:'Border Crossing',    slots:2, owner:'dientes', garrison:8,  trait:'border' }
+];
+
+const TABS = [
+  { id:'dash',  label:'HQ',        ico:'$' },
+  { id:'market',label:'Market',    ico:'%' },
+  { id:'prod',  label:'Labs',      ico:'#' },
+  { id:'routes',label:'Routes',    ico:'>' },
+  { id:'war',   label:'War Room',  ico:'x' },
+  { id:'plazas',label:'Plazas',    ico:'O' }
+];
+
+/* ---------------- utils ---------------- */
+function rand(a,b){ return a + Math.random()*(b-a); }
+function randi(a,b){ return Math.floor(rand(a,b+1)); }
+function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
+
+let S = null;          // game state
+let tab = 'dash';
+let TEST_MODE = null;  // 'smoke' | 'bot' | 'raid' when ?test= is set
+const testErrors = [];
+window.addEventListener('error', e=>{ testErrors.push('window.onerror: '+(e.message||e.error)); });
+const _cerr = console.error.bind(console);
+console.error = (...a)=>{ testErrors.push('console.error: '+a.map(String).join(' ')); _cerr(...a); };
+
+/* ---------------- state / save ---------------- */
+function rollPrices(){
+  const o = {};
+  for (const k in DRUGS){
+    const spread = DRUGS[k].steady ? 0.08 : 0.20;
+    o[k] = Math.round(DRUGS[k].base * rand(1-spread, 1+spread));
+  }
+  return o;
+}
+function freshState(){
+  return {
+    version: SAVE_VERSION,
+    week: 1, cash: 8000, heat: 10,
+    stash: { weed:20, mdma:0, meth:0, cocaine:0, heroin:0, fentanyl:0 },
+    sicarios: 5, weapons: 0,
+    lookouts: 0, lawyer: false, launderedThisWeek: false,
+    cokeLab: false,
+    prices: rollPrices(),
+    plazas: PLAZA_DEFS.map(d=>{
+      const slotsTotal = d.slots + (d.trait==='industrial' ? 1 : 0);
+      return {
+        id:d.id, name:d.name, slotsTotal, owner:d.owner, trait:d.trait,
+        price:d.price||0, garrison:d.garrison||0, cokeLab:!!d.cokeLab,
+        level:1, slots:new Array(slotsTotal).fill(null)
+      };
+    }),
+    rivals: {
+      buitres:{ sic:9,  truce:0, aggro:0 },
+      serrano:{ sic:12, truce:0, aggro:0 },
+      dientes:{ sic:11, truce:0, aggro:0 }
+    },
+    soldThisWeek:false, mayorWeek:false, cokeDiscount:false, spikeDrug:null,
+    boom:false, goodConnect:false, hustled:false,
+    festival:0, fentCrash:0, undercut:0, fedWatch:0, queue:[],
+    log:[], gameOver:null,
+    stats:{ earned:0, battlesWon:0, battlesLost:0, raids:0 }
+  };
+}
+function save(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    if(!s || typeof s!=='object') return null;
+    if(s.version !== SAVE_VERSION){
+      // clean migration: fill any missing fields from a fresh state
+      const f = freshState();
+      for(const k in f) if(s[k]===undefined) s[k]=f[k];
+      s.version = SAVE_VERSION;
+    }
+    return s;
+  }catch(e){ return null; }
+}
+function plazaById(id){ return S.plazas.find(p=>p.id===id); }
+function myPlazas(){ return S.plazas.filter(p=>p.owner==='player'); }
+function plazaValue(p){ return 10000 + 5000*p.slotsTotal; }
+function stashValue(){ let v=0; for(const k in S.stash) v += S.stash[k]*DRUGS[k].base; return v; }
+function empireValue(){ let v = S.cash + stashValue(); for(const p of myPlazas()) v += plazaValue(p); return v; }
+function log(msg, cls){
+  S.log.unshift({ w:S.week, msg, cls:cls||'' });
+  if(S.log.length>80) S.log.length = 80;
+}
+
+/* ---------------- derived values ---------------- */
+function hasTrait(t){ return myPlazas().some(p=>p.trait===t); }
+function shipRisk(route, drugId){
+  let r = route.risk;
+  if (DRUGS[drugId].bulky) r += 0.05;
+  if (hasTrait('port')) r -= 0.08;
+  r -= 0.04 * S.lookouts;
+  return clamp(r, 0.01, 0.95);
+}
+function unitPrice(drugId, routeId){
+  const route = ROUTES.find(r=>r.id===routeId) || ROUTES[0];
+  let p = S.prices[drugId] * route.mult;
+  if (drugId==='mdma' && S.festival>0) p *= 1.8;
+  if (S.spikeDrug===drugId) p *= 1.4;
+  if (S.undercut>0) p *= 0.85;
+  if (drugId==='fentanyl' && S.fentCrash>0) p *= 0.8;
+  if (routeId==='local' && hasTrait('urban')) p *= 1.10;
+  if (routeId==='cross' && hasTrait('border')) p *= 1.15;
+  if (S.boom) p *= 1.15;
+  return Math.round(p);
+}
+function buyPrice(drugId){
+  let c = DRUGS[drugId].cost;
+  if (S.cokeDiscount && (drugId==='cocaine'||drugId==='heroin'||drugId==='fentanyl')) c *= 0.7;
+  if (S.goodConnect) c *= 0.8;
+  return Math.max(1, Math.round(c));
+}
+function canProduce(d){ return PRODUCIBLE.includes(d) && (d!=='cocaine' || S.cokeLab); }
+
+/* ---------------- modal cards ---------------- */
+const modalQ = [];
+let modalOpen = false;
+function card(o){
+  if (TEST_MODE){
+    testLog.push('CARD: '+o.title);
+    // test bot plays it cautious: declines truce offers, takes first choice otherwise
+    const c = (o.title==='Truce Offer' && o.choices[1]) ? o.choices[1] : o.choices[0];
+    if (c&&c.fn) c.fn();
+    return;
+  }
+  modalQ.push(o); pumpModal();
+}
+function pumpModal(){
+  if (modalOpen || !modalQ.length) return;
+  modalOpen = true;
+  const o = modalQ.shift();
+  const m = document.getElementById('modal');
+  m.innerHTML = '<h2>'+esc(o.title)+'</h2><div>'+o.body+'</div><div class="choices"></div>';
+  const box = m.querySelector('.choices');
+  o.choices.forEach(c=>{
+    const b = document.createElement('button');
+    b.className = 'btn block' + (c.cls==='secondary' ? ' secondary' : '');
+    b.textContent = c.label;
+    b.onclick = ()=>{ closeModal(); if(c.fn) c.fn(); };
+    box.appendChild(b);
+  });
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+  modalOpen = false; pumpModal();
+}
+
+/* ---------------- actions ---------------- */
+function afterAction(){ save(); checkEnd(); render(); }
+
+function sellDrug(drugId, amount, routeId){
+  if (S.gameOver) return;
+  amount = Math.min(Math.floor(amount)||0, S.stash[drugId]||0);
+  if (amount<=0){ log('Nothing to sell.','dim'); return; }
+  const route = ROUTES.find(r=>r.id===routeId) || ROUTES[0];
+  S.stash[drugId] -= amount;
+  if (Math.random() < shipRisk(route, drugId)){
+    S.heat = Math.min(100, S.heat+8);
+    log('INTERCEPTED: '+amount+' '+DRUGS[drugId].name+' seized on '+route.name+'. +8 heat.','bad');
+  } else {
+    const rev = amount * unitPrice(drugId, route.id);
+    S.cash += rev; S.stats.earned += rev;
+    const hg = DRUGS[drugId].heat10 * amount/10;
+    S.heat = Math.min(100, S.heat+hg);
+    S.soldThisWeek = true;
+    log('Sold '+amount+' '+DRUGS[drugId].name+' via '+route.name+' for $'+fmt(rev)+'. (+'+hg.toFixed(1)+' heat)','good');
+  }
+  afterAction();
+}
+
+function buyDrug(drugId, amount){
+  if (S.gameOver) return;
+  const unit = buyPrice(drugId);
+  amount = Math.min(Math.floor(amount)||0, Math.floor(S.cash/unit));
+  if (amount<=0){ log("Can't afford that.",'bad'); return; }
+  S.cash -= amount*unit;
+  S.stash[drugId] = (S.stash[drugId]||0)+amount;
+  log('Bought '+amount+' '+DRUGS[drugId].name+' from the connect for $'+fmt(amount*unit)+'.','good');
+  afterAction();
+}
+
+function setSlot(plazaId, idx, drugId){
+  if (S.gameOver) return;
+  const p = plazaById(plazaId);
+  if (!p || p.owner!=='player') return;
+  if (drugId && !canProduce(drugId)) return;
+  p.slots[idx] = drugId || null;
+  afterAction();
+}
+
+function upgradePlaza(plazaId){
+  if (S.gameOver) return;
+  const p = plazaById(plazaId);
+  if (!p || p.owner!=='player' || p.level>=3) return;
+  const cost = 3000*p.level;
+  if (S.cash<cost){ log('Not enough cash to upgrade.','bad'); return; }
+  S.cash -= cost; p.level++;
+  log(p.name+' lab upgraded to level '+p.level+' (-$'+fmt(cost)+').','good');
+  afterAction();
+}
+
+function hire(n){
+  if (S.gameOver) return;
+  n = Math.floor(n)||0; if (n<=0) return;
+  const cost = n*1000;
+  if (S.cash<cost){ log('Not enough cash to hire.','bad'); return; }
+  S.cash -= cost; S.sicarios += n;
+  log('Hired '+n+' sicario'+(n>1?'s':'')+' (-$'+fmt(cost)+').','good');
+  afterAction();
+}
+
+function buyWeapon(){
+  if (S.gameOver || S.weapons>=3) return;
+  if (S.cash<8000){ log('Not enough cash for hardware.','bad'); return; }
+  S.cash -= 8000; S.weapons++;
+  log('Military-grade hardware. Weapons '+S.weapons+'/3 (+'+(S.weapons*20)+'% attack).','good');
+  afterAction();
+}
+
+function buyLookout(){
+  if (S.gameOver || S.lookouts>=3) return;
+  if (S.cash<4000){ log('Not enough cash for a lookout.','bad'); return; }
+  S.cash -= 4000; S.lookouts++;
+  log('Lookout posted ('+S.lookouts+'/3). Interception -4% everywhere.','good');
+  afterAction();
+}
+
+function buyLawyer(){
+  if (S.gameOver || S.lawyer) return;
+  if (S.cash<15000){ log('Not enough cash for a lawyer.','bad'); return; }
+  S.cash -= 15000; S.lawyer = true;
+  log('Retained a shark of a lawyer. Raid losses halved from now on.','good');
+  afterAction();
+}
+
+function launder(){
+  if (S.gameOver) return;
+  const over = S.cash-50000;
+  if (over<=0){ log('Nothing dirty to wash.','dim'); return; }
+  const fee = Math.round(over*0.10);
+  S.cash -= fee; S.launderedThisWeek = true;
+  log('Laundered $'+fmt(over)+' through the car wash. Fee $'+fmt(fee)+'. No heat this week.','good');
+  afterAction();
+}
+
+function bribe(){
+  if (S.gameOver) return;
+  const c = S.mayorWeek ? 2500 : 5000;
+  if (S.cash<c){ log('Not enough cash for a bribe.','bad'); return; }
+  S.cash -= c; S.heat = Math.max(0, S.heat-15);
+  log('Paid off the right people (-$'+fmt(c)+'). Heat -15.','good');
+  afterAction();
+}
+
+function hustle(){
+  // comeback mechanic: when plazaless (or anytime), work the corner for quick cash
+  if (S.gameOver || S.hustled) return;
+  S.hustled = true;
+  S.cash += 750; S.stats.earned += 750;
+  S.heat = Math.min(100, S.heat+2);
+  log('Back on the corner hustling: +$750. (+2 heat)','good');
+  afterAction();
+}
+
+function buyPlaza(plazaId){
+  if (S.gameOver) return;
+  const p = plazaById(plazaId);
+  if (!p || p.owner!=='neutral') return;
+  if (S.cash<p.price){ log('Not enough cash for '+p.name+'.','bad'); return; }
+  S.cash -= p.price;
+  log('Bought '+p.name+' ('+TRAITS[p.trait].name+') for $'+fmt(p.price)+'.','good');
+  p.owner='player'; p.price=0;
+  afterAction();
+}
+
+/* ---------------- battles ---------------- */
+function attackPlaza(plazaId, sent){
+  if (S.gameOver) return;
+  const p = plazaById(plazaId);
+  if (!p || !RIVALS[p.owner]) return;
+  const rid = p.owner;
+  sent = clamp(Math.floor(sent)||0, 1, S.sicarios);
+  if (sent<=0) return;
+  const atk = sent*(1+0.2*S.weapons)*rand(0.8,1.2);
+  const def = Math.max(1,p.garrison)*rand(0.8,1.2);
+  S.heat = Math.min(100, S.heat+10);
+  if (atk > def){
+    const lost = Math.round(sent*rand(0.2,0.4));
+    S.sicarios = Math.max(0, S.sicarios-lost);
+    p.owner='player'; p.garrison=0; p.level=1;
+    p.slots = new Array(p.slotsTotal).fill(null);
+    const drug = ['weed','meth','cocaine'][randi(0,2)];
+    const seized = randi(10,30);
+    S.stash[drug]=(S.stash[drug]||0)+seized;
+    let extra='';
+    if (p.cokeLab && !S.cokeLab){ S.cokeLab=true; extra='<p class="good"><b>COKE LAB CAPTURED.</b> You can now produce cocaine.</p>'; }
+    S.stats.battlesWon++;
+    S.rivals[rid].sic = Math.max(0, S.rivals[rid].sic - Math.ceil(sent*0.3));
+    log('Took '+p.name+' from '+RIVALS[rid].name+'. Lost '+lost+' sicarios. (+10 heat)','good');
+    card({title:p.name+' TAKEN',
+      body:'<p>Your crew stormed '+esc(p.name)+' and planted the flag. '+lost+' of '+sent+' sicarios didn\'t make it.</p><p>Seized '+seized+' '+DRUGS[drug].name+' from their stash.</p>'+extra+'<p class="dim">Trait: '+TRAITS[p.trait].name+' — '+TRAITS[p.trait].desc+'</p>',
+      choices:[{label:'Keep moving', fn:()=>{ afterAction(); }}]});
+  } else {
+    const lost = Math.round(sent*rand(0.5,0.7));
+    S.sicarios = Math.max(0, S.sicarios-lost);
+    S.stats.battlesLost++;
+    S.rivals[rid].aggro += 2;
+    log('Hit on '+p.name+' failed. Lost '+lost+' sicarios. (+10 heat)','bad');
+    card({title:'HIT FAILED',
+      body:'<p>'+esc(p.name)+'\'s garrison held. You lost '+lost+' of '+sent+' sicarios.</p><p class="dim">'+RIVALS[rid].name+' won\'t forget this.</p>',
+      choices:[{label:'Fall back', fn:()=>{ afterAction(); }}]});
+  }
+}
+
+function rivalAttack(rid){
+  const mine = myPlazas();
+  if (!mine.length) return;
+  const nonHome = mine.filter(p=>p.id!=='southside');
+  const target = nonHome.length ? nonHome[randi(0,nonHome.length-1)] : mine[0];
+  const r = S.rivals[rid];
+  const force = Math.min(r.sic, randi(2,6));
+  if (force<=0) return;
+  r.sic -= force;
+  const atk = force*rand(0.8,1.2);
+  const homeBonus = target.id==='southside' ? 1.3 : 0.9;
+  const def = S.sicarios*homeBonus*rand(0.8,1.2);
+  S.heat = Math.min(100, S.heat+5);
+  if (def >= atk){
+    const lost = randi(1,2);
+    S.sicarios = Math.max(0, S.sicarios-lost);
+    log('Repelled '+RIVALS[rid].name+'\'s hit on '+target.name+'. Lost '+lost+' sicarios.','good');
+    card({title:'HIT REPELLED',
+      body:'<p>'+RIVALS[rid].name+' came for '+esc(target.name)+' with '+force+' men. Your crew sent them home. You lost '+lost+' sicarios.</p>',
+      choices:[{label:'Good', fn:()=>{ afterAction(); }}]});
+  } else {
+    const lost = Math.round(S.sicarios*0.20);
+    S.sicarios = Math.max(0, S.sicarios-lost);
+    target.owner = rid; target.garrison = randi(3,6);
+    target.slots = new Array(target.slotsTotal).fill(null); target.level = 1;
+    log('Lost '+target.name+' to '+RIVALS[rid].name+'.','bad');
+    card({title:target.name+' LOST',
+      body:'<p>'+RIVALS[rid].name+' overran '+esc(target.name)+'. You lost '+lost+' sicarios in the retreat.</p>'+(target.id==='southside'?'<p class="bad">That was your home turf.</p>':''),
+      choices:[{label:'Regroup', fn:()=>{ afterAction(); }}]});
+  }
+}
+
+function scheme(rid){
+  if (Math.random()<0.5){
+    S.undercut = 1;
+    log(RIVALS[rid].name+' is undercutting your prices this week. (-15% sell)','bad');
+  } else {
+    let big=null, bn=0;
+    for (const k in S.stash){ if ((S.stash[k]||0)>bn){ bn=S.stash[k]; big=k; } }
+    if (big && bn>=5){
+      const n = Math.max(1, Math.round(bn*0.15));
+      S.stash[big]-=n;
+      log(RIVALS[rid].name+' hijacked '+n+' '+DRUGS[big].name+' from your stash!','bad');
+    } else log(RIVALS[rid].name+' tried to hijack a shipment — nothing to take.','dim');
+  }
+}
+
+function offerTruce(rid){
+  const cost = 3000 + S.week*150 + S.rivals[rid].sic*200;
+  card({title:'Truce Offer',
+    body:'<p>'+RIVALS[rid].name+' offers <b>3 weeks of peace</b> — no hits, no schemes — for <b>$'+fmt(cost)+'</b>.</p>',
+    choices:[
+      {label:'Pay $'+fmt(cost), fn:()=>{ if(S.cash>=cost){ S.cash-=cost; S.rivals[rid].truce=3; log('Truce with '+RIVALS[rid].name+'. 3 quiet weeks.','good'); } else log('Couldn\'t afford the truce.','bad'); afterAction(); }},
+      {label:'Refuse', cls:'secondary', fn:()=>{ S.rivals[rid].aggro+=1; log('Refused '+RIVALS[rid].name+'\'s truce.','dim'); afterAction(); }}
+    ]});
+}
+
+function rivalTurns(){
+  for (const rid in S.rivals){
+    const r = S.rivals[rid];
+    if (r.truce>0){ r.truce--; continue; }
+    const rPlazas = S.plazas.filter(p=>p.owner===rid);
+    if (!rPlazas.length) continue;
+    const ai = AI[rid];
+    let roll = Math.random() + r.aggro*0.05;
+    r.aggro = Math.max(0, r.aggro-1);
+    // grace period: no attacks before week 5 — rivals posture instead
+    if (S.week<5 && roll < ai.attack) roll = ai.attack;
+    if (roll < ai.attack){ rivalAttack(rid); }
+    else if (roll < ai.attack+ai.expand){
+      r.sic = Math.min(30, r.sic+randi(1,3));
+      const g = rid==='serrano' ? 2 : 1;
+      const p = rPlazas[randi(0,rPlazas.length-1)];
+      p.garrison = Math.min(14, p.garrison+g);
+      log(RIVALS[rid].name+' is digging in.','dim');
+    }
+    else if (roll < ai.attack+ai.expand+ai.scheme){ scheme(rid); }
+    else if (roll < ai.attack+ai.expand+ai.scheme+ai.truce){ offerTruce(rid); }
+  }
+  if (S.gameOver) return;
+}
+
+/* ---------------- events ---------------- */
+const EVENTS = [
+  {id:'quiet', w:20}, {id:'dea_tipoff', w:12}, {id:'connect_discount', w:10},
+  {id:'price_spike', w:12}, {id:'informant', w:9}, {id:'route_hit', w:9},
+  {id:'corrupt_mayor', w:10}, {id:'festival_season', w:8}, {id:'lab_fire', w:7},
+  {id:'snitch_warning', w:8}, {id:'war_rumor', w:7}, {id:'good_connect', w:8},
+  {id:'street_boom', w:8}, {id:'od_crisis', w:6}, {id:'crooked_cop', w:9}
+];
+function drawEvent(){
+  if (S.queue.length){ runEvent(S.queue.shift()); return; }
+  let total=0; for (const e of EVENTS) total+=e.w;
+  let r = Math.random()*total;
+  for (const e of EVENTS){ r-=e.w; if (r<=0){ runEvent(e.id); return; } }
+  runEvent('quiet');
+}
+function runEvent(id){
+  switch(id){
+    case 'quiet':
+      log('Quiet week. Nothing but crickets.','dim'); break;
+    case 'dea_tipoff':
+      card({title:'DEA Tipoff',
+        body:'<p>A fed has your name on a whiteboard. Pay <b>$3,000</b> to make it disappear, or eat <b>+12 heat</b> — and the van stays on your street.</p>',
+        choices:[
+          {label:'Pay $3,000', fn:()=>{ if(S.cash>=3000){ S.cash-=3000; log('Buried the tipoff. -$3,000.','good'); } else { S.heat=Math.min(100,S.heat+12); log('Couldn\'t pay. +12 heat.','bad'); } afterAction(); }},
+          {label:'Take the heat', cls:'secondary', fn:()=>{ S.heat=Math.min(100,S.heat+12); S.queue.push('surveillance'); log('You ate the heat. A surveillance van is parked across the street...','bad'); afterAction(); }}
+        ]}); break;
+    case 'surveillance':
+      if (S.soldThisWeek){ S.heat=Math.min(100,S.heat+8); log('The surveillance van caught movement. +8 heat.','bad'); }
+      else log('You went quiet. The surveillance van moved on.','good');
+      break;
+    case 'connect_discount':
+      S.cokeDiscount = true;
+      log('Your connect is overstocked: cocaine, heroin & fentanyl 30% OFF this week.','good'); break;
+    case 'good_connect':
+      S.goodConnect = true;
+      log('A new supplier wants your business: ALL buy prices -20% this week.','good'); break;
+    case 'price_spike': {
+      const keys = Object.keys(DRUGS);
+      const d = keys[randi(0,keys.length-1)];
+      S.spikeDrug = d;
+      log(DRUGS[d].name+' is spiking: +40% sell price this week!','good'); break;
+    }
+    case 'street_boom':
+      S.boom = true;
+      log('Street demand is surging: ALL sell prices +15% this week.','good'); break;
+    case 'informant':
+      card({title:'Rat in the Crew',
+        body:'<p>Somebody\'s been talking. Pay the crew <b>$2,000</b> in hush money, or make an example of the loudest mouth (lose <b>1 sicario</b>).</p>',
+        choices:[
+          {label:'Pay $2,000', fn:()=>{ if(S.cash>=2000){ S.cash-=2000; log('Hush money paid. -$2,000.','good'); } else { S.heat=Math.min(100,S.heat+6); log('Couldn\'t pay. Paranoia spreads. +6 heat.','bad'); } afterAction(); }},
+          {label:'Lose 1 sicario', cls:'secondary', fn:()=>{ if(S.sicarios>0){ S.sicarios--; log('Made an example. -1 sicario. The crew is quiet now.','dim'); } else { S.heat=Math.min(100,S.heat+6); log('No one to make an example of. +6 heat.','bad'); } afterAction(); }}
+        ]}); break;
+    case 'route_hit': {
+      let big=null, bn=0;
+      for (const k in S.stash){ if ((S.stash[k]||0)>bn){ bn=S.stash[k]; big=k; } }
+      if (big && bn>=5){ const n=Math.max(1,Math.round(bn*0.15)); S.stash[big]-=n; log('A rival crew hit your stash house: lost '+n+' '+DRUGS[big].name+'.','bad'); }
+      else log('Word is a rival crew hit an empty stash house. Not yours.','dim');
+      break;
+    }
+    case 'corrupt_mayor':
+      S.mayorWeek = true;
+      log('The mayor needs campaign funds: BRIBES 50% OFF this week.','good'); break;
+    case 'festival_season':
+      S.festival = 2;
+      log('FESTIVAL SEASON — MDMA sells at x1.8 for 2 weeks!','good'); break;
+    case 'lab_fire': {
+      const methPlazas = myPlazas().filter(p=>p.slots.some(s=>s==='meth'));
+      if (methPlazas.length && S.cash>=2000){ S.cash-=2000; log('A meth lab caught fire. $2,000 in damage, nobody talks about it.','bad'); }
+      else if (methPlazas.length){ log('A meth lab caught fire and you can\'t cover repairs. The crew is nervous.','bad'); S.heat=Math.min(100,S.heat+4); }
+      else log('A rival\'s lab went up in smoke. Not yours. Lucky.','dim');
+      break;
+    }
+    case 'snitch_warning':
+      card({title:'Snitch Warning',
+        body:'<p>A snitch says the feds are watching your crew. Pay <b>$5,000</b> to bury it — or risk it. Risk it and <b>sell anything next week</b>, and the raid comes for real.</p>',
+        choices:[
+          {label:'Pay $5,000', fn:()=>{ if(S.cash>=5000){ S.cash-=5000; log('Buried the snitch\'s story. -$5,000.','good'); } else { S.fedWatch=S.week+1; log('Couldn\'t pay — feds will be watching NEXT week. Sell nothing.','bad'); } afterAction(); }},
+          {label:'Risk it (lay low next week)', cls:'secondary', fn:()=>{ S.fedWatch=S.week+1; log('Feds will be watching NEXT week. Sell nothing or the raid comes.','dim'); afterAction(); }}
+        ]}); break;
+    case 'war_rumor': {
+      const alive = Object.keys(RIVALS).filter(rid=>S.plazas.some(p=>p.owner===rid));
+      if (alive.length){ const rid=alive[randi(0,alive.length-1)]; for(const p of S.plazas.filter(p=>p.owner===rid)) p.garrison=Math.min(14,p.garrison+2); log('Rumors of war: '+RIVALS[rid].name+' is mobilizing (+2 garrison everywhere).','bad'); }
+      else log('The streets are quiet. Too quiet.','dim');
+      break;
+    }
+    case 'od_crisis':
+      if ((S.stash.fentanyl||0)>0){ S.heat=Math.min(100,S.heat+10); log('Overdoses traced back to your fentanyl. +10 heat.','bad'); }
+      else log('An OD crisis hits the news. None of it is yours. This time.','dim');
+      break;
+    case 'crooked_cop':
+      card({title:'Crooked Cop',
+        body:'<p>A detective wants <b>$4,000</b> for his kid\'s tuition. Pay, or he starts asking questions (<b>+10 heat</b>).</p>',
+        choices:[
+          {label:'Pay $4,000', fn:()=>{ if(S.cash>=4000){ S.cash-=4000; log('Tuition paid. -$4,000.','good'); } else { S.heat=Math.min(100,S.heat+10); log('Couldn\'t pay. +10 heat.','bad'); } afterAction(); }},
+          {label:'Take the heat', cls:'secondary', fn:()=>{ S.heat=Math.min(100,S.heat+10); log('He\'ll be back with friends. +10 heat.','bad'); afterAction(); }}
+        ]}); break;
+  }
+}
+
+/* ---------------- raid / game over ---------------- */
+function doRaid(reason){
+  if (S.gameOver) return;
+  S.stats.raids++;
+  const stashLoss = S.lawyer?0.25:0.5, cashLoss = S.lawyer?0.15:0.30;
+  for (const k in S.stash) S.stash[k]=Math.floor((S.stash[k]||0)*(1-stashLoss));
+  const lostCash = Math.round(S.cash*cashLoss);
+  S.cash = Math.floor(S.cash*(1-cashLoss));
+  S.heat = 70;
+  const mine = myPlazas();
+  const others = mine.filter(p=>p.id!=='southside');
+  if (!others.length){
+    gameOver(false, (reason?reason+' ':'')+'FED RAID on your last plaza. The empire is ash.');
+    return;
+  }
+  const v = others[randi(0,others.length-1)];
+  v.owner='neutral'; v.price=15000; v.level=1;
+  v.slots = new Array(v.slotsTotal).fill(null);
+  log('FED RAID — seized '+Math.round(stashLoss*100)+'% of stash, $'+fmt(lostCash)+' cash, and '+v.name+'.','bad');
+  card({title:'FED RAID',
+    body:'<p>'+esc(reason||'The feds kicked in doors across the city.')+'</p><p>Lost <b>'+Math.round(stashLoss*100)+'%</b> of stash, <b>$'+fmt(lostCash)+'</b> cash, and <b>'+esc(v.name)+'</b>.</p>'+(S.lawyer?'<p class="good">Your lawyer kept the losses to half.</p>':''),
+    choices:[{label:'Rebuild', fn:()=>{ afterAction(); }}]});
+}
+function gameOver(win, reason){
+  if (S.gameOver) return;
+  S.gameOver = { win, reason, week:S.week, value:Math.round(empireValue()) };
+  save();
+  if (TEST_MODE) return;
+  document.getElementById('go-title').textContent = win?'KINGPIN':'BUSTED';
+  document.getElementById('go-title').style.color = win?'var(--gold)':'var(--red)';
+  document.getElementById('go-reason').textContent = reason;
+  document.getElementById('go-stats').textContent = 'Survived '+S.week+' weeks · Empire value $'+fmt(empireValue())+' · Battles '+S.stats.battlesWon+'W/'+S.stats.battlesLost+'L';
+  document.getElementById('gameover').classList.add('open');
+}
+function checkEnd(){
+  if (S.gameOver) return;
+  if (S.heat>=100){ doRaid(); return; }
+  const mine = myPlazas();
+  if (mine.length===S.plazas.length){ gameOver(true,'You control every plaza in the city. Untouchable.'); return; }
+  if (empireValue()>=250000){ gameOver(true,'Empire value passed $250,000. You are the plug.'); return; }
+  let stashN=0; for (const k in S.stash) stashN+=S.stash[k]||0;
+  if (!mine.length && S.cash<500 && stashN===0){ gameOver(false,'Broke, plazaless, and empty-handed. The game eats the weak.'); }
+}
+
+/* ---------------- week tick ---------------- */
+function endWeek(){
+  if (S.gameOver) return;
+  // chained: fed watch — if this week was watched and you sold, the raid comes
+  if (S.fedWatch>0 && S.fedWatch===S.week){
+    if (S.soldThisWeek){ S.fedWatch=0; doRaid('The snitch was right. The feds were watching.'); }
+    else { S.fedWatch=0; log('The heat moved on. The snitch was wrong — this time.','good'); }
+  }
+  if (S.gameOver) return;
+  // production
+  for (const p of myPlazas()){
+    const mult = 1+0.5*(p.level-1);
+    p.slots.forEach((drugId,i)=>{
+      if (!drugId) return;
+      if (!canProduce(drugId)){ p.slots[i]=null; return; }
+      const d = DRUGS[drugId];
+      if (d.volatile && Math.random()<0.03){
+        S.cash = Math.max(0, S.cash-2000);
+        log('LAB EXPLOSION at '+p.name+'! Lost the week\'s output and $2,000 in damage.','bad');
+        return;
+      }
+      const out = Math.round(d.output*mult), cost = out*d.cost;
+      if (S.cash>=cost){ S.cash-=cost; S.stash[drugId]=(S.stash[drugId]||0)+out; }
+      else log(p.name+' slot '+(i+1)+' idled — couldn\'t cover $'+fmt(cost)+'.','bad');
+    });
+  }
+  // fentanyl overdose risk
+  if ((S.stash.fentanyl||0)>=20 && Math.random()<0.04){
+    S.heat = Math.min(100, S.heat+15); S.fentCrash = 2;
+    log('OVERDOSE CLUSTER from your fentanyl. +15 heat, buyers spooked (-20% price, 2 wks).','bad');
+  }
+  // dirty money
+  if (S.cash>50000 && !S.launderedThisWeek){
+    S.heat = Math.min(100, S.heat+2);
+    log('Dirty money piling up (+2 heat). Launder it in HQ.','bad');
+  }
+  // rivals move
+  rivalTurns();
+  if (S.gameOver) return;
+  // weekly event
+  drawEvent();
+  // heat decay for laying low — the emergency valve when heat spikes
+  if (!S.soldThisWeek){
+    let dec = 8; if (hasTrait('rural')) dec += 1;
+    S.heat = Math.max(0, S.heat-dec);
+  }
+  // reset weekly flags, tick counters
+  S.soldThisWeek=false; S.launderedThisWeek=false; S.hustled=false;
+  S.mayorWeek=false; S.cokeDiscount=false; S.spikeDrug=null; S.boom=false; S.goodConnect=false;
+  if (S.festival>0) S.festival--;
+  if (S.fentCrash>0) S.fentCrash--;
+  if (S.undercut>0) S.undercut--;
+  S.prices = rollPrices();
+  S.week++;
+  if (S.week%8===0){ S.festival=2; log('FESTIVAL SEASON — MDMA sells at x1.8 for 2 weeks!','good'); }
+  save(); checkEnd(); render();
+}
+
+/* ---------------- new game ---------------- */
+function newGame(){
+  S = freshState();
+  log('A new empire rises. Start small, think big.','goldt');
+  save();
+  if (!TEST_MODE){ document.getElementById('gameover').classList.remove('open'); render(); }
+}
+function newGameAsk(){
+  card({title:'New Game?',
+    body:'<p>Abandon this empire and start over? Your save will be wiped.</p>',
+    choices:[
+      {label:'Start over', fn:()=>newGame()},
+      {label:'Keep playing', cls:'secondary', fn:()=>{}}
+    ]});
+}
+
+/* ---------------- rendering ---------------- */
+function ownerBadge(p){
+  if (p.owner==='player') return '<span class="badge b-you">YOU</span>';
+  if (p.owner==='neutral') return '<span class="badge b-neutral">NEUTRAL</span>';
+  return '<span class="badge b-rival">'+esc(RIVALS[p.owner].name)+'</span>';
+}
+function traitChip(p){ return '<span class="chip">'+TRAITS[p.trait].name+'</span>'; }
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML = TABS.map(t=>
+    '<button class="'+(t.id===tab?'active':'')+'" onclick="G.tab(\''+t.id+'\')"><span class="ico">'+t.ico+'</span>'+t.label+'</button>'
+  ).join('');
+}
+function render(){
+  if (TEST_MODE) return;
+  renderTabs();
+  const R = { dash:rDash, market:rMarket, prod:rProd, routes:rRoutes, war:rWar, plazas:rPlazas }[tab] || rDash;
+  document.getElementById('screen').innerHTML = R();
+}
+
+function rDash(){
+  const heatPct = Math.round(S.heat);
+  const heatColor = S.heat<40 ? 'var(--green)' : S.heat<70 ? 'var(--gold)' : 'var(--red)';
+  const stashChips = Object.keys(DRUGS).map(d=>'<span class="chip">'+DRUGS[d].name+': <b>'+(S.stash[d]||0)+'</b></span>').join('');
+  const traits = [...new Set(myPlazas().map(p=>p.trait))].map(t=>'<span class="chip" title="'+esc(TRAITS[t].desc)+'">'+TRAITS[t].name+'</span>').join('') || '<span class="dim">none yet</span>';
+  const over = S.cash-50000;
+  return ''+
+  '<div class="statgrid">'+
+    '<div class="stat"><div class="lbl">Week</div><div class="val">'+S.week+'</div></div>'+
+    '<div class="stat"><div class="lbl">Cash</div><div class="val gold">$'+fmt(S.cash)+'</div></div>'+
+    '<div class="stat"><div class="lbl">Empire value</div><div class="val">$'+fmt(empireValue())+'</div><div class="est">goal: $250k or all 9 plazas</div></div>'+
+    '<div class="stat"><div class="lbl">Heat '+heatPct+'</div><div class="heatbar"><div style="width:'+heatPct+'%;background:'+heatColor+'"></div></div><div class="est">100 = raid</div></div>'+
+  '</div>'+
+  (S.festival>0 ? '<div class="card"><span class="goldt"><b>FESTIVAL SEASON</b> — MDMA x1.8 ('+S.festival+' wk left)</span></div>' : '')+
+  (S.undercut>0 ? '<div class="card"><span class="bad"><b>PRICE WAR</b> — Los Dientes undercutting you (-15% sell)</span></div>' : '')+
+  (S.fedWatch===S.week ? '<div class="card"><span class="bad"><b>⚠ FEDS WATCHING</b> — sell nothing this week or the raid comes.</span></div>' : '')+
+  '<div class="card"><h3>Stash</h3>'+stashChips+'</div>'+
+  '<div class="card"><h3>Crew</h3>'+
+    '<div class="kv"><span>Sicarios</span><span>'+S.sicarios+'</span></div>'+
+    '<div class="kv"><span>Weapons</span><span>'+'●'.repeat(S.weapons)+'○'.repeat(3-S.weapons)+'</span></div>'+
+    '<div class="kv"><span>Lookouts</span><span>'+S.lookouts+'/3</span></div>'+
+    '<div class="kv"><span>Lawyer</span><span>'+(S.lawyer?'<span class="good">retained</span>':'<span class="dim">none</span>')+'</span></div>'+
+    '<div class="kv"><span>Coke lab</span><span>'+(S.cokeLab?'<span class="good">captured</span>':'<span class="dim">not yet</span>')+'</span></div>'+
+  '</div>'+
+  '<div class="card"><h3>Plaza traits</h3>'+traits+'</div>'+
+  (over>0 ? '<div class="card"><h3>Dirty money</h3><p>$'+fmt(over)+' over the $50k line. Launder for $'+fmt(Math.round(over*0.10))+' or take +2 heat at week\'s end.</p><button class="btn block" onclick="G.launder()">Launder $'+fmt(Math.round(over*0.10))+'</button></div>' : '')+
+  '<div class="card"><h3>Bribes</h3><p class="dim">-15 heat for $'+fmt(S.mayorWeek?2500:5000)+(S.mayorWeek?' (mayor discount!)':'')+'.</p><button class="btn secondary block" onclick="G.bribe()">Bribe officials</button></div>'+
+  '<div class="card"><h3>Street hustle</h3><p class="dim">Work the corner yourself: +$750, +2 heat. Once a week.'+(myPlazas().length===0?' <b class="goldt">You have no plazas — this is how you rebuild.</b>':'')+'</p><button class="btn secondary block" onclick="G.hustle()"'+(S.hustled?' disabled':'')+'>'+(S.hustled?'Hustled this week':'Hustle +$750')+'</button></div>'+
+  (!S.lawyer ? '<div class="card"><h3>Lawyer</h3><p class="dim">Halves all raid losses. One-time $15,000.</p><button class="btn secondary block" onclick="G.lawyer()">Retain lawyer — $15,000</button></div>' : '')+
+  '<button class="btn block" style="min-height:56px;font-size:18px" onclick="G.endWeek()">END WEEK '+S.week+' →</button>'+
+  '<div class="card"><h3>Log</h3><div id="log">'+S.log.map(e=>'<div><span class="t">W'+e.w+'</span><span class="'+e.cls+'">'+e.msg+'</span></div>').join('')+'</div></div>';
+}
+
+function rMarket(){
+  return Object.keys(DRUGS).map(d=>{
+    const D = DRUGS[d];
+    const mechs = ['heat +'+D.heat10+'/10 sold'];
+    if (D.bulky) mechs.push('+5% interception');
+    if (D.volatile) mechs.push('3%/wk lab explosion');
+    if (D.steady) mechs.push('stable price');
+    if (D.od) mechs.push('OD risk at 20+ units');
+    if (d==='cocaine' && !S.cokeLab) mechs.push('production locked: capture a coke lab');
+    const routeOpts = ROUTES.map(r=>'<option value="'+r.id+'"'+(r.id==='regional'?' selected':'')+'>'+r.name+' x'+r.mult+'</option>').join('');
+    return '<div class="card"><h3>'+D.name+'</h3>'+
+      '<p class="dim" style="margin:0 0 6px">'+D.blurb+'</p>'+
+      '<div class="kv"><span>Stash</span><span>'+(S.stash[d]||0)+' units</span></div>'+
+      '<div class="kv"><span>Market price</span><span>~$'+fmt(S.prices[d])+'/u</span></div>'+
+      '<div class="kv"><span>Buy (connect)</span><span>$'+fmt(buyPrice(d))+'/u</span></div>'+
+      '<p class="est">'+mechs.join(' · ')+'</p>'+
+      '<div class="numrow"><input id="samt-'+d+'" type="number" min="0" placeholder="amount"><select id="sroute-'+d+'">'+routeOpts+'</select></div>'+
+      '<button class="btn small block" onclick="G.sell(\''+d+'\')">Sell</button>'+
+      '<div class="numrow"><input id="bamt-'+d+'" type="number" min="0" placeholder="amount"></div>'+
+      '<button class="btn secondary small block" onclick="G.buy(\''+d+'\')">Buy @ $'+fmt(buyPrice(d))+'/u</button>'+
+    '</div>';
+  }).join('');
+}
+
+function rProd(){
+  const mine = myPlazas();
+  if (!mine.length) return '<div class="card"><p class="dim">No plazas. That\'s a problem.</p></div>';
+  return mine.map(p=>{
+    const mult = 1+0.5*(p.level-1);
+    const slots = p.slots.map((s,i)=>{
+      const opts = ['<option value="">Idle</option>'].concat(PRODUCIBLE.map(d=>{
+        const locked = d==='cocaine' && !S.cokeLab;
+        return '<option value="'+d+'"'+(s===d?' selected':'')+(locked?' disabled':'')+'>'+(locked?'Cocaine (capture a lab)':DRUGS[d].name)+'</option>';
+      })).join('');
+      const info = s ? (function(){ const out=Math.round(DRUGS[s].output*mult); return out+' u/wk · $'+fmt(out*DRUGS[s].cost)+'/wk'; })() : 'idle';
+      return '<div class="row" style="margin:6px 0"><select class="slotpick" onchange="G.setSlot(\''+p.id+'\','+i+',this.value)">'+opts+'</select><span class="est" style="min-width:120px;text-align:right">'+info+'</span></div>';
+    }).join('');
+    const upCost = 3000*p.level;
+    return '<div class="card"><h3>'+esc(p.name)+' '+traitChip(p)+'</h3>'+
+      '<div class="kv"><span>Lab level</span><span>'+p.level+'/3 (output x'+mult.toFixed(1)+')</span></div>'+
+      slots+
+      (p.level<3 ? '<button class="btn secondary small block" onclick="G.upgrade(\''+p.id+'\')">Upgrade lab — $'+fmt(upCost)+'</button>' : '<p class="dim">Lab maxed.</p>')+
+    '</div>';
+  }).join('');
+}
+
+function rRoutes(){
+  const cards = ROUTES.map(r=>{
+    const baseR = Math.round(shipRisk(r,'meth')*100);
+    const weedR = Math.round(shipRisk(r,'weed')*100);
+    let multNote = 'x'+r.mult;
+    if (r.id==='local' && hasTrait('urban')) multNote += ' (urban +10%)';
+    if (r.id==='cross' && hasTrait('border')) multNote += ' (border +15%)';
+    return '<div class="card"><h3>'+r.name+'</h3>'+
+      '<div class="kv"><span>Price multiplier</span><span>'+multNote+'</span></div>'+
+      '<div class="kv"><span>Interception</span><span>'+baseR+'% (bulky '+weedR+'%)</span></div>'+
+      '<p class="dim">'+r.blurb+'</p></div>';
+  }).join('');
+  const traitNotes = [];
+  if (hasTrait('port')) traitNotes.push('<span class="good">Port active (-8% interception)</span>');
+  if (hasTrait('border')) traitNotes.push('<span class="good">Border active (cross-border +15%)</span>');
+  if (hasTrait('urban')) traitNotes.push('<span class="good">Urban active (local +10%)</span>');
+  return cards+
+    '<div class="card"><h3>Lookouts '+S.lookouts+'/3</h3>'+
+      '<p class="dim">Each lookout cuts interception 4% on every route. $4,000 each.</p>'+
+      (S.lookouts<3 ? '<button class="btn secondary block" onclick="G.lookout()">Hire lookout — $4,000</button>' : '<p class="dim">Fully covered.</p>')+
+    '</div>'+
+    (traitNotes.length ? '<div class="card"><p class="est">'+traitNotes.join(' · ')+'</p></div>' : '');
+}
+
+function rWar(){
+  const forces = '<div class="card"><h3>Your forces</h3>'+
+    '<div class="kv"><span>Sicarios</span><span>'+S.sicarios+'</span></div>'+
+    '<div class="row"><button class="btn secondary small" onclick="G.hire(1)">+1 ($1k)</button><button class="btn secondary small" onclick="G.hire(5)">+5 ($5k)</button></div>'+
+    '<div class="kv" style="margin-top:8px"><span>Weapons</span><span>'+'●'.repeat(S.weapons)+'○'.repeat(3-S.weapons)+' (+'+(S.weapons*20)+'% attack)</span></div>'+
+    (S.weapons<3 ? '<button class="btn secondary small block" onclick="G.weapon()">Buy hardware — $8,000</button>' : '')+
+  '</div>';
+  const rivals = Object.keys(RIVALS).map(rid=>{
+    const r = S.rivals[rid], R = RIVALS[rid];
+    const rps = S.plazas.filter(p=>p.owner===rid);
+    if (!rps.length) return '<div class="card"><h3>'+R.name+'</h3><p class="good">ELIMINATED</p></div>';
+    const plist = rps.map(p=>'<div class="row" style="margin:8px 0"><div><b>'+esc(p.name)+'</b> '+traitChip(p)+'<br><span class="est">garrison ~'+p.garrison+' · '+p.slotsTotal+' slots'+(p.cokeLab?' · COKE LAB':'')+'</span></div><button class="btn danger small" onclick="G.openAttack(\''+p.id+'\')">Hit</button></div>').join('');
+    return '<div class="card"><h3>'+R.name+'</h3>'+
+      '<p class="dim" style="margin:0 0 6px"><b class="goldt">'+R.tag+'</b><br>'+R.desc+'</p>'+
+      '<div class="kv"><span>Plazas</span><span>'+rps.length+'</span></div>'+
+      '<div class="kv"><span>Est. sicarios</span><span>~'+Math.max(0,r.sic-2)+'–'+(r.sic+2)+'</span></div>'+
+      (r.truce>0 ? '<p class="good">Truce: '+r.truce+' weeks left</p>' : '')+
+      '<hr class="sep">'+plist+'</div>';
+  }).join('');
+  return forces+rivals;
+}
+
+function rPlazas(){
+  return S.plazas.map(p=>{
+    let extra='';
+    if (p.owner==='player') extra = '<div class="est">lab lvl '+p.level+' · '+p.slotsTotal+' slots · '+TRAITS[p.trait].desc+'</div>';
+    else if (p.owner==='neutral') extra = '<button class="btn small block" onclick="G.buyPlaza(\''+p.id+'\')"'+(S.cash<p.price?' disabled':'')+'>Buy — $'+fmt(p.price)+'</button>';
+    else extra = '<div class="est">garrison ~'+p.garrison+(p.cokeLab?' · COKE LAB':'')+'</div>';
+    return '<div class="card"><div class="row"><b>'+esc(p.name)+'</b>'+ownerBadge(p)+'</div><div style="margin:6px 0">'+traitChip(p)+'</div>'+extra+'</div>';
+  }).join('');
+}
+
+function openAttack(pid){
+  const p = plazaById(pid);
+  if (!p || !RIVALS[p.owner]) return;
+  const pw = (1+0.2*S.weapons).toFixed(1);
+  const sug = Math.min(S.sicarios, p.garrison*2+4);
+  card({title:'Hit: '+p.name,
+    body:'<p>'+RIVALS[p.owner].name+' holds '+esc(p.name)+'. Garrison ~'+p.garrison+'. Your power per man: x'+pw+'.</p>'+
+      '<div class="numrow"><input id="atk-n" type="number" min="1" max="'+S.sicarios+'" value="'+sug+'"><span class="dim">sicarios (you have '+S.sicarios+')</span></div>'+
+      '<p class="est">Win: take the plaza and its trait. Lose: lose half your men. Either way: +10 heat.</p>',
+    choices:[
+      {label:'Attack', fn:()=>{ const el=document.getElementById('atk-n'); const n=el?parseInt(el.value)||0:0; attackPlaza(pid,n); }},
+      {label:'Call it off', cls:'secondary', fn:()=>{}}
+    ]});
+}
+
+/* ---------------- public API ---------------- */
+window.G = {
+  tab:t=>{ tab=t; render(); },
+  newGame, newGameAsk, endWeek,
+  sell:d=>{ const a=document.getElementById('samt-'+d), r=document.getElementById('sroute-'+d); sellDrug(d, a?parseInt(a.value)||0:0, r?r.value:'regional'); },
+  buy:d=>{ const a=document.getElementById('bamt-'+d); buyDrug(d, a?parseInt(a.value)||0:0); },
+  setSlot:(pid,i,v)=>setSlot(pid,i,v||null),
+  upgrade:upgradePlaza, hire:h=>hire(h||1),
+  weapon:buyWeapon, lookout:buyLookout, lawyer:buyLawyer,
+  launder, bribe, buyPlaza, openAttack, hustle:hustle
+};
+window.__plaza = {
+  get S(){ return S; }, newGame, endWeek, sellDrug, buyDrug, setSlot,
+  upgradePlaza, hire, buyWeapon, buyLookout, buyLawyer, launder, bribe,
+  buyPlaza, attackPlaza, checkEnd, doRaid, empireValue, plazaById, hustle,
+  DRUGS, ROUTES, RIVALS, TRAITS
+};
+
+/* ---------------- test harness (?test=) ---------------- */
+const testLog = [];
+function botSell(){
+  // sell to a heat ceiling — higher when desperate for cash (the alternative is worse)
+  const ceil = S.cash<15000 ? 75 : 60;
+  const order = ['cocaine','meth','mdma','weed'];
+  let guard = 0;
+  while (S.heat<ceil && guard++<12 && !S.gameOver){
+    let moved = false;
+    for (const d of order){
+      const n = S.stash[d]||0; if (n<=0) continue;
+      const room = ceil-S.heat;
+      const maxByHeat = Math.floor(room/(DRUGS[d].heat10/10));
+      const q = Math.min(n, Math.max(0,maxByHeat));
+      if (q>0){ sellDrug(d, q, S.heat>40?'local':'regional'); moved=true; break; }
+    }
+    if (!moved) break;
+  }
+}
+function botWeek(){
+  // SENSIBLE BOT v2: simple, robust, economic. Produce -> sell -> bribe -> expand slowly.
+  // 1. sell to a heat ceiling (higher when desperate) — never sell on a fed-watch week
+  if (S.fedWatch!==S.week){
+    const ceil = S.cash<15000 ? 75 : 60;
+    const order = ['cocaine','meth','mdma','weed'];
+    let guard = 0;
+    while (S.heat<ceil && guard++<12 && !S.gameOver){
+      let moved = false;
+      for (const d of order){
+        const n = S.stash[d]||0; if (n<=0) continue;
+        const room = ceil-S.heat;
+        const maxByHeat = Math.floor(room/(DRUGS[d].heat10/10));
+        const q = Math.min(n, Math.max(0,maxByHeat));
+        if (q>0){ sellDrug(d, q, S.heat>40?'local':'regional'); moved=true; break; }
+      }
+      if (!moved) break;
+    }
+  }
+  // 2. fund production — profit-first drug choice, keep cash above 2k
+  for (const p of myPlazas()){
+    const mult = 1+0.5*(p.level-1);
+    p.slots.forEach((s,i)=>{
+      if (s || S.cash<3000) return;
+      const choices = S.cokeLab ? ['meth','mdma','cocaine','weed'] : ['meth','mdma','weed'];
+      for (const d of choices){
+        const out = Math.round(DRUGS[d].output*mult), cost = out*DRUGS[d].cost;
+        if (S.cash > cost+2000){ p.slots[i]=d; break; }
+      }
+    });
+  }
+  // 3. crew — 8 is enough early (grace period), 12 later for defense
+  const crewTarget = S.week<4 ? 8 : 12;
+  while (S.sicarios<crewTarget && S.cash>6000) hire(1);
+  // 4. bribes keep heat manageable — low cash gate so it actually fires
+  const bc = S.mayorWeek?2500:5000;
+  let bribes = 0;
+  while (S.heat>45 && S.cash>bc+2000 && bribes<3){ bribe(); bribes++; }
+  // 5. launder excess
+  if (S.cash>50000){ const fee=Math.round((S.cash-50000)*0.10); if (S.cash>fee+10000) launder(); }
+  // 6. expand — only when cash comfortably covers price + operating fund
+  for (const p of S.plazas.filter(p=>p.owner==='neutral')){
+    if (S.cash > p.price*1.5+5000) buyPlaza(p.id);
+  }
+  // 7. upgrades and gear from true surplus
+  for (const p of myPlazas()){ if (p.level<3 && S.cash>3000*p.level+15000) upgradePlaza(p.id); }
+  if (S.weapons<2 && S.cash>35000) buyWeapon();
+  if (S.lookouts<2 && S.cash>25000) buyLookout();
+  if (!S.lawyer && S.cash>50000) buyLawyer();
+  // 8. no attacks — the economic win ($250k) needs no wars
+  // safety net: hustle when broke (can't fund production) — plazas or not
+  if (S.cash<3000 && S.heat<70) hustle();
+  if (!S.gameOver) endWeek();
+}
+function tSmoke(){
+  S = freshState();
+  sellDrug('weed',5,'local');
+  buyDrug('meth',2);
+  setSlot('southside',0,'weed'); setSlot('southside',1,'meth');
+  upgradePlaza('southside');
+  hire(2); buyWeapon(); buyLookout(); buyLawyer(); bribe();
+  buyPlaza('market');
+  attackPlaza('oldtown',4);
+  endWeek(); endWeek(); endWeek();
+  const ids=['quiet','dea_tipoff','connect_discount','price_spike','informant','route_hit','corrupt_mayor','festival_season','lab_fire','snitch_warning','war_rumor','good_connect','street_boom','od_crisis','crooked_cop','surveillance'];
+  for (const id of ids) runEvent(id);
+  testLog.push('smoke: week='+S.week+' cash='+Math.round(S.cash)+' heat='+Math.round(S.heat)+' plazas='+myPlazas().length+' sic='+S.sicarios);
+  testLog.push('smoke: battles='+S.stats.battlesWon+'W/'+S.stats.battlesLost+'L');
+}
+function tBot(){
+  S = freshState();
+  let w=0;
+  const trace = TEST_MODE==='trace';
+  while (!S.gameOver && w<80){
+    botWeek(); w++;
+    if (trace && w%5===0) testLog.push('w'+S.week+' cash='+Math.round(S.cash)+' heat='+Math.round(S.heat)+' plz='+myPlazas().length+' sic='+S.sicarios+' emp='+Math.round(empireValue())+' W'+S.stats.battlesWon+'/L'+S.stats.battlesLost);
+  }
+  testLog.push('bot: weeks='+S.week+' gameOver='+(S.gameOver?JSON.stringify(S.gameOver):'null'));
+  testLog.push('bot: cash='+Math.round(S.cash)+' empire='+Math.round(empireValue())+' plazas='+myPlazas().length+' heat='+Math.round(S.heat)+' sic='+S.sicarios);
+  testLog.push('bot: battles='+S.stats.battlesWon+'W/'+S.stats.battlesLost+'L raids='+S.stats.raids+' earned='+Math.round(S.stats.earned));
+}
+function tReckless(){
+  S = freshState();
+  let w=0;
+  while (!S.gameOver && w<40){
+    buyDrug('cocaine', 99999);
+    for (const d in DRUGS){ if ((S.stash[d]||0)>0) sellDrug(d, S.stash[d], 'cross'); }
+    const tg = S.plazas.filter(p=>RIVALS[p.owner]);
+    if (tg.length && S.sicarios>0 && !S.gameOver) attackPlaza(tg[0].id, S.sicarios);
+    if (!S.gameOver) endWeek();
+    w++;
+  }
+  testLog.push('reckless: weeks='+S.week+' gameOver='+(S.gameOver?JSON.stringify(S.gameOver):'null'));
+  testLog.push('reckless: heat='+Math.round(S.heat)+' plazas='+myPlazas().length+' raids='+S.stats.raids);
+}
+function tRaid(){
+  S = freshState();
+  S.heat = 100; checkEnd();
+  testLog.push('raid-last-plaza: gameOver='+(S.gameOver?JSON.stringify(S.gameOver):'null'));
+  S = freshState();
+  const mp = plazaById('market'); mp.owner='player'; mp.price=0;
+  S.heat = 100; checkEnd();
+  testLog.push('raid-two-plaza: '+(S.gameOver?'GAMEOVER':'survived')+' plazas='+myPlazas().length+' heat='+S.heat+' cash='+Math.round(S.cash));
+}
+function runTests(){
+  testLog.push('TEST_MODE='+TEST_MODE);
+  try{
+    if (TEST_MODE==='smoke') tSmoke();
+    else if (TEST_MODE==='bot' || TEST_MODE==='trace') tBot();
+    else if (TEST_MODE==='reckless') tReckless();
+    else if (TEST_MODE==='raid') tRaid();
+    else testLog.push('unknown test mode');
+  }catch(e){ testLog.push('TEST EXCEPTION: '+(e&&e.stack||e)); }
+  document.body.innerHTML = '<pre id="test-out" style="color:#0f0;background:#000;padding:12px;white-space:pre-wrap">'+esc(testLog.join('\n')+'\n---ERRORS---\n'+(testErrors.join('\n')||'(none)'))+'</pre>';
+}
+
+/* ---------------- init ---------------- */
+function init(){
+  const q = new URLSearchParams(location.search);
+  TEST_MODE = q.get('test');
+  if (TEST_MODE){ S = freshState(); runTests(); return; }
+  const loaded = load();
+  S = loaded || freshState();
+  if (!loaded){ log('A new empire rises. Start small, think big.','goldt'); save(); }
+  render();
+}
+if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+else init();
+</script>
+</body>
+</html>
