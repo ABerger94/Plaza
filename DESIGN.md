@@ -147,6 +147,49 @@ per-drug so old saves gain new fields cleanly.
   production outputs rebalanced, plaza prices raised, lay-low decay 3 → 8,
   truce spam reduced, hustle added as comeback mechanic.
 
+## Visual map layer (added 2026-09-17)
+
+The map is a **presentation-only canvas overlay** (`MapFX` module in
+`index.html`). It reads game state and renders it; it never changes game
+math. Every animation is cosmetic, tap-to-skip (any tap on the canvas clears
+all in-flight effects), and driven by the game loop's own randomness —
+`MapFX` keeps its own visual RNG so it can't shift gameplay rolls.
+
+- **Territory:** deterministic procedural terrain (seeded, stable across
+  frames): coastline/water east and south bay, border fence with patrols
+  along the north edge, mountain range in the northwest, city street grid in
+  the center. All nine plaza nodes drawn with name + trait.
+- **Owner colors:** gold (player), red (Los Buitres), blue (La Familia
+  Serrano), purple (Los Dientes), gray (neutral). Ownership changes tween
+  color over ~0.6s plus a capture pulse ring.
+- **Sales:** animated shipment dots run the real route (local = short hop
+  from nearest owned plaza, regional = medium arc, cross-border = long arc
+  to the border). Intercepted shipments burst red mid-route at the roll's
+  "bust point". Shipment speed reflects route risk.
+- **Heat:** plaza glow + red map vignette scale with heat; above 70 the map
+  edge pulses red. Bribes trigger a cool-down ripple at the HQ plaza.
+- **Battles:** player attacks show gold forces converging from owned plazas
+  onto the target, a clash burst, then the ownership tween. Rival attacks
+  play in reverse (rival-colored forces onto the player's plaza).
+- **Rival activity:** gold pulse ring on the acting rival's plaza + a small
+  banner naming the rival and action (attack / expand / scheme / truce).
+- **Week resolution:** end-of-week production pops `+N DRUG` labels on
+  producing plazas; lab explosions flash red at the plaza.
+- **Events:** relevant events pin a pulsing marker at the affected plaza
+  (or map center for global ones) with a banner.
+- **Raids:** red expanding ring + screen flash on the raided plaza.
+- **Cash counter** in the map HUD rolls toward the new value.
+- **Map/Classic toggle:** segmented control above the map; Map is the
+  default tab. All seven classic screens remain unchanged under their tabs.
+- Plaza nodes are tappable → intel popup (owner, trait, lab, garrison for
+  rivals) with contextual actions (manage labs, buy, attack, hustle...).
+- Canvas is 960×1120 backing store at 2× for crisp text; logical 480×560.
+  The live canvas is preserved across actions (only the HUD re-renders) so
+  animations never restart mid-flight; remounts replay recent effects via
+  `rebase()` without duplicating them.
+- Tested headless: zero page/console errors across smoke, raid, reckless,
+  and bot suites; screenshot-verified at 480px width; plaza tap popup works.
+
 ## Files
 
 - `index.html` — the entire game (inline CSS/JS, zero dependencies).

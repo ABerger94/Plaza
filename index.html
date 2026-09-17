@@ -66,6 +66,11 @@ select.slotpick{flex:1;min-width:0}
 .kv span:last-child{font-weight:600}
 .est{font-size:12px;color:var(--dim)}
 hr.sep{border:none;border-top:1px solid var(--line);margin:10px 0}
+.segctl{display:flex;gap:8px;margin-bottom:10px}
+.segctl button{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);font-weight:700;font-size:14px;cursor:pointer}
+.segctl button.active{background:var(--gold);color:#171204;border-color:var(--gold)}
+#mapcanvas{border:1px solid var(--line);border-radius:12px;touch-action:manipulation;background:#0b0e0a;margin-bottom:12px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
 </style>
 </head>
 <body>
@@ -145,6 +150,7 @@ const PLAZA_DEFS = [
 ];
 
 const TABS = [
+  { id:'map',   label:'Map',       ico:'◈' },
   { id:'dash',  label:'HQ',        ico:'$' },
   { id:'market',label:'Market',    ico:'%' },
   { id:'prod',  label:'Labs',      ico:'#' },
@@ -161,7 +167,7 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;'
 function clamp(n,a,b){ return Math.max(a,Math.min(b,n)); }
 
 let S = null;          // game state
-let tab = 'dash';
+let tab = 'map';
 let TEST_MODE = null;  // 'smoke' | 'bot' | 'raid' when ?test= is set
 const testErrors = [];
 window.addEventListener('error', e=>{ testErrors.push('window.onerror: '+(e.message||e.error)); });
@@ -297,6 +303,414 @@ function closeModal(){
   modalOpen = false; pumpModal();
 }
 
+/* ============================================================
+   VISUAL MAP LAYER (presentation only)
+   - Canvas-rendered stylized region map, seeded procedural terrain.
+   - Reads S every frame; NEVER mutates game state.
+   - All hooks are no-ops in TEST_MODE via fx().
+   - Animations are cosmetic overlays: queued, capped, and instantly
+     skippable by tapping the map. They never gate game logic.
+   ============================================================ */
+const PLAZA_POS = {
+  border:   {x:240,y:64},
+  hilltop:  {x:100,y:124},
+  warehouse:{x:368,y:124},
+  railyard: {x:132,y:218},
+  oldtown:  {x:330,y:218},
+  southside:{x:230,y:324},
+  strip:    {x:396,y:348},
+  market:   {x:116,y:434},
+  portside: {x:298,y:464}
+};
+const OWNER_COLORS = { player:'#d4af37', buitres:'#e05244', serrano:'#5aa9e0', dientes:'#b06ae0', neutral:'#8f8f8f' };
+function ownerColor(o){ return OWNER_COLORS[o]||'#8f8f8f'; }
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+/* fx(): the single integration point. No-op in tests. */
+function fx(fn){ if(!TEST_MODE && typeof MapFX!=='undefined') fn(MapFX); }
+
+const MapFX = (function(){
+  const W=480, H=560;
+  let cv=null, ctx=null, rafId=0, running=false;
+  let anims=[], popups=[], pings=[], shipments=[], banner=null, raidFlashAt=0;
+  let cashShown=0;
+  const dispColor={};
+  const drawErrors=[];
+  const ROUTE_PATHS={
+    local:   {p0:[230,324],p1:[306,296],p2:[312,372]},
+    regional:{p0:[230,324],p1:[344,238],p2:[440,264]},
+    cross:   {p0:[230,324],p1:[190,190],p2:[310,70]}
+  };
+  function hexRGB(h){ h=h.replace('#',''); return {r:parseInt(h.substr(0,2),16),g:parseInt(h.substr(2,2),16),b:parseInt(h.substr(4,2),16)}; }
+  function mixC(a,b,t){ return {r:a.r+(b.r-a.r)*t,g:a.g+(b.g-a.g)*t,b:a.b+(b.b-a.b)*t}; }
+  function css(c){ return 'rgb('+(c.r|0)+','+(c.g|0)+','+(c.b|0)+')'; }
+  function mounted(){ return !!(cv&&cv.isConnected&&ctx); }
+  function qp(path,t){ const a=path.p0,b=path.p1,c2=path.p2,u=1-t;
+    return [u*u*a[0]+2*u*t*b[0]+t*t*c2[0], u*u*a[1]+2*u*t*b[1]+t*t*c2[1]]; }
+  function plazaPos(id){ return PLAZA_POS[id]||null; }
+  function plazaName(id){ const p=S.plazas.find(x=>x.id===id); return p?p.name:id; }
+  function roundRectPath(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+
+  /* ----- terrain: deterministic, seeded, drawn fresh every frame ----- */
+  function drawTerrain(c){
+    const g=c.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'#0b0e0a'); g.addColorStop(1,'#0e130c');
+    c.fillStyle=g; c.fillRect(0,0,W,H);
+    const R=mulberry32(20260917);
+    // water: east coast + south bay
+    c.fillStyle='#0c181c';
+    c.beginPath(); c.moveTo(W,250);
+    for(let y=250;y<=H;y+=10) c.lineTo(452-20*Math.sin(y*0.03)-8*Math.sin(y*0.11),y);
+    c.lineTo(W,H); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(170,H);
+    for(let x=170;x<=W;x+=10) c.lineTo(x,524-16*Math.sin(x*0.02)-6*Math.sin(x*0.09));
+    c.lineTo(W,H); c.closePath(); c.fill();
+    c.strokeStyle='rgba(90,169,224,0.14)'; c.lineWidth=1;
+    for(let i=0;i<5;i++){ const y=310+i*48; c.beginPath();
+      for(let x=432;x<=W;x+=8) c.lineTo(x,y+5*Math.sin(x*0.05+i*1.7));
+      c.stroke(); }
+    // mountains (NW, behind Hilltop)
+    const peaks=[[70,92,30],[112,70,36],[150,104,28],[96,142,24],[58,138,22]];
+    for(const pk of peaks){ const px=pk[0],py=pk[1],s=pk[2];
+      c.fillStyle='#18211a';
+      c.beginPath(); c.moveTo(px-s,py+s*0.65); c.lineTo(px,py-s*0.75); c.lineTo(px+s,py+s*0.65); c.closePath(); c.fill();
+      c.strokeStyle='rgba(212,175,55,0.16)'; c.lineWidth=1; c.stroke();
+      c.fillStyle='rgba(236,231,212,0.10)';
+      c.beginPath(); c.moveTo(px-7,py-s*0.35); c.lineTo(px,py-s*0.75); c.lineTo(px+7,py-s*0.35); c.closePath(); c.fill();
+    }
+    // city grid (center)
+    c.strokeStyle='rgba(155,151,132,0.09)'; c.lineWidth=1;
+    for(let x=160;x<=300;x+=20){ c.beginPath(); c.moveTo(x,248); c.lineTo(x,392); c.stroke(); }
+    for(let y=248;y<=392;y+=20){ c.beginPath(); c.moveTo(160,y); c.lineTo(300,y); c.stroke(); }
+    c.fillStyle='rgba(155,151,132,0.05)';
+    for(let i=0;i<26;i++){ const bx=150+R()*170, by=240+R()*160; c.fillRect(bx,by,8+R()*10,6+R()*8); }
+    // border fence (north)
+    c.strokeStyle='rgba(224,82,68,0.55)'; c.lineWidth=2; c.setLineDash([9,7]);
+    c.beginPath(); c.moveTo(36,40); c.lineTo(444,40); c.stroke(); c.setLineDash([]);
+    c.fillStyle='rgba(224,82,68,0.75)'; c.font='700 10px sans-serif'; c.textAlign='center';
+    c.fillText('B O R D E R',240,30);
+    c.fillStyle='rgba(155,151,132,0.30)'; c.font='10px sans-serif';
+    c.fillText('THE CITY',230,406);
+    c.fillText('SIERRA',100,182);
+  }
+
+  function drawRoutes(c){
+    const labels={local:'LOCAL',regional:'REGIONAL',cross:'CROSS-BORDER'};
+    for(const id in ROUTE_PATHS){
+      const p=ROUTE_PATHS[id];
+      c.strokeStyle='rgba(212,175,55,0.20)'; c.lineWidth=1.5; c.setLineDash([5,5]);
+      c.beginPath(); c.moveTo(p.p0[0],p.p0[1]);
+      c.quadraticCurveTo(p.p1[0],p.p1[1],p.p2[0],p.p2[1]); c.stroke(); c.setLineDash([]);
+      const e=qp(p,1);
+      c.fillStyle='rgba(212,175,55,0.45)'; c.font='9px sans-serif'; c.textAlign='center';
+      c.fillText(labels[id],e[0],e[1]-8);
+    }
+  }
+
+  /* heat aura: red vignette, pulsing past 70 */
+  function drawHeat(c,now){
+    const h=S.heat/100; if(h<=0.01) return;
+    let a=0.30*h;
+    if(S.heat>=70) a*=0.65+0.35*Math.sin(now/180);
+    const eg=c.createRadialGradient(W/2,H/2,H*0.30,W/2,H/2,H*0.72);
+    eg.addColorStop(0,'rgba(224,82,68,0)');
+    eg.addColorStop(1,'rgba(224,82,68,'+a.toFixed(3)+')');
+    c.fillStyle=eg; c.fillRect(0,0,W,H);
+  }
+
+  function drawPlazas(c,now){
+    for(const p of S.plazas){
+      const pos=plazaPos(p.id); if(!pos) continue;
+      const target=hexRGB(ownerColor(p.owner));
+      let d=dispColor[p.id];
+      if(!d){ d=dispColor[p.id]=target; }
+      else { d=dispColor[p.id]=mixC(d,target,0.14); } // color tweens on capture
+      const col=css(d);
+      // heat halo
+      const heatA=S.heat/100;
+      if(heatA>0.02){
+        const pulse=0.6+0.4*Math.sin(now/300+pos.x);
+        const hg=c.createRadialGradient(pos.x,pos.y,8,pos.x,pos.y,34);
+        hg.addColorStop(0,'rgba(224,82,68,'+(0.55*heatA*pulse).toFixed(3)+')');
+        hg.addColorStop(1,'rgba(224,82,68,0)');
+        c.fillStyle=hg; c.beginPath(); c.arc(pos.x,pos.y,34,0,7); c.fill();
+      }
+      // owner glow
+      const og=c.createRadialGradient(pos.x,pos.y,4,pos.x,pos.y,26);
+      og.addColorStop(0,col); og.addColorStop(1,'rgba(0,0,0,0)');
+      c.globalAlpha=0.35; c.fillStyle=og; c.beginPath(); c.arc(pos.x,pos.y,26,0,7); c.fill(); c.globalAlpha=1;
+      // node
+      c.fillStyle='#0a0d0a'; c.beginPath(); c.arc(pos.x,pos.y,13,0,7); c.fill();
+      c.lineWidth=3; c.strokeStyle=col; c.stroke();
+      c.fillStyle=col; c.beginPath(); c.arc(pos.x,pos.y,4.5,0,7); c.fill();
+      // rival garrison intel
+      if(RIVALS[p.owner]){
+        c.font='700 10px sans-serif'; c.textAlign='center'; c.fillStyle='rgba(236,231,212,0.75)';
+        const gy = pos.y<100 ? pos.y+54 : pos.y-20; // border plaza: keep clear of the fence
+        c.fillText('~'+p.garrison,pos.x,gy);
+      }
+      // label
+      c.font='700 11px sans-serif'; c.textAlign='center';
+      c.fillStyle='rgba(0,0,0,0.65)'; c.fillText(p.name,pos.x+1,pos.y+29);
+      c.fillStyle=p.owner==='player'?'#d4af37':'#ece7d4';
+      c.fillText(p.name,pos.x,pos.y+28);
+      c.font='9px sans-serif'; c.fillStyle='rgba(155,151,132,0.85)';
+      c.fillText(TRAITS[p.trait].name,pos.x,pos.y+40);
+    }
+  }
+
+  function drawShipments(c,now){
+    shipments=shipments.filter(s=>now-s.t0<s.dur+500);
+    for(const s of shipments){
+      const p=Math.min(1,(now-s.t0)/s.dur);
+      if(p<0) continue;
+      if(s.bustAt&&p>=s.bustAt){
+        const bp=Math.min(1,(p-s.bustAt)/0.18);
+        if(bp<1){ const pt=qp(s.path,s.bustAt);
+          c.strokeStyle='rgba(224,82,68,'+(1-bp).toFixed(3)+')'; c.lineWidth=3;
+          c.beginPath(); c.arc(pt[0],pt[1],4+bp*24,0,7); c.stroke();
+          c.fillStyle='rgba(224,82,68,'+(1-bp).toFixed(3)+')'; c.font='700 12px sans-serif'; c.textAlign='center';
+          c.fillText('BUSTED',pt[0],pt[1]-16);
+        }
+        continue;
+      }
+      const pt=qp(s.path,p);
+      c.fillStyle='rgba(212,175,55,0.22)';
+      c.beginPath(); c.arc(pt[0],pt[1],9,0,7); c.fill();
+      c.fillStyle='#ffd75e'; c.beginPath(); c.arc(pt[0],pt[1],4,0,7); c.fill();
+    }
+  }
+
+  function drawPings(c,now){
+    pings=pings.filter(pg=>now-pg.t0<pg.dur);
+    for(const pg of pings){
+      const q=(now-pg.t0)/pg.dur; if(q<0) continue;
+      c.globalAlpha=1-q; c.strokeStyle=pg.color; c.lineWidth=3;
+      c.beginPath(); c.arc(pg.x,pg.y,6+q*pg.maxR,0,7); c.stroke(); c.globalAlpha=1;
+    }
+  }
+
+  function drawPopups(c,now){
+    popups=popups.filter(p=>now-p.t0<p.dur);
+    for(const p of popups){
+      const q=(now-p.t0)/p.dur; if(q<0) continue;
+      c.globalAlpha=1-q*q;
+      c.font='700 12px sans-serif'; c.textAlign='center';
+      c.fillStyle='#000'; c.fillText(p.txt,p.x+1,p.y-q*26+1);
+      c.fillStyle=p.color; c.fillText(p.txt,p.x,p.y-q*26);
+      c.globalAlpha=1;
+    }
+  }
+
+  function drawBanner(c,now){
+    if(!banner) return;
+    const q=(now-banner.t0)/banner.dur;
+    if(q>=1){ banner=null; return; }
+    c.globalAlpha=q<0.1?q/0.1:(q>0.8?(1-q)/0.2:1);
+    c.font='800 14px sans-serif'; c.textAlign='center';
+    const w=c.measureText(banner.txt).width+30;
+    c.fillStyle='rgba(10,13,10,0.88)';
+    roundRectPath(c,W/2-w/2,44,w,30,8); c.fill();
+    c.strokeStyle=banner.color; c.lineWidth=1.5;
+    roundRectPath(c,W/2-w/2,44,w,30,8); c.stroke();
+    c.fillStyle=banner.color; c.fillText(banner.txt,W/2,64);
+    c.globalAlpha=1;
+  }
+
+  function drawRaidFlash(c,now){
+    const q=(now-raidFlashAt)/1300; if(q>=1||q<0) return;
+    c.fillStyle='rgba(224,82,68,'+(0.35*(1-q)).toFixed(3)+')';
+    c.fillRect(0,0,W,H);
+  }
+
+  function draw(now){
+    const c=ctx;
+    c.clearRect(0,0,W,H);
+    drawTerrain(c);
+    drawRoutes(c);
+    drawHeat(c,now);
+    drawPlazas(c,now);
+    drawShipments(c,now);
+    drawPings(c,now);
+    drawPopups(c,now);
+    anims=anims.filter(a=>{ const p=(now-a.t0)/a.dur; if(p<0) return true; if(p>=1) return false; a.draw(c,now,p); return true; });
+    drawBanner(c,now);
+    drawRaidFlash(c,now);
+    // rolling cash counter in the HUD
+    const cashEl=document.getElementById('mh-cash');
+    if(S&&cashEl){
+      if(!cashShown) cashShown=S.cash;
+      const diff=S.cash-cashShown;
+      cashShown=Math.abs(diff)<1?S.cash:cashShown+diff*0.18;
+      const txt='$'+fmt(cashShown);
+      if(cashEl.textContent!==txt) cashEl.textContent=txt;
+    }
+  }
+  function frame(now){
+    if(!running) return;
+    if(!mounted()){ running=false; cv=null; ctx=null; return; }
+    try{ draw(now); }
+    catch(e){ drawErrors.push(String((e&&e.stack)||e)); running=false; return; }
+    rafId=requestAnimationFrame(frame);
+  }
+
+  /* ----- notify API (called from game actions via fx()) ----- */
+  function bannerIt(txt,color){ banner={txt,color,t0:performance.now(),dur:2400}; }
+  function rebase(){
+    // items queued while the map wasn't mounted replay on return (if recent), else drop
+    const now=performance.now();
+    function keep(arr,cap){
+      const kept=arr.filter(it=>now-it.t0<30000);
+      while(kept.length>cap) kept.shift();
+      for(const it of kept) it.t0=now;
+      return kept;
+    }
+    anims=keep(anims,8); popups=keep(popups,10); pings=keep(pings,10); shipments=keep(shipments,10);
+    if(banner){ if(now-banner.t0>30000) banner=null; else banner.t0=now; }
+    if(raidFlashAt&&now-raidFlashAt>30000) raidFlashAt=0; else if(raidFlashAt) raidFlashAt=now;
+  }
+  function onSale(s){
+    if(shipments.length>=10) shipments.shift();
+    shipments.push({path:ROUTE_PATHS[s.route]||ROUTE_PATHS.regional,t0:performance.now(),dur:2300,
+      bustAt:s.intercepted?0.35+Math.random()*0.3:0});
+  }
+  function onProduce(pid,outs){
+    const pos=plazaPos(pid); if(!pos||!outs||!outs.length) return;
+    while(popups.length>14) popups.shift();
+    const t0=performance.now();
+    outs.forEach((o,i)=>popups.push({x:pos.x,y:pos.y-20-i*17,txt:'+'+o.out+' '+DRUGS[o.drug].name.toUpperCase(),color:'#8fe08a',t0:t0+i*280,dur:1700}));
+  }
+  function onBoom(pid){
+    const pos=plazaPos(pid); if(!pos) return;
+    pings.push({x:pos.x,y:pos.y,color:'#ff9a3c',t0:performance.now(),dur:1400,maxR:52});
+    bannerIt('LAB EXPLOSION — '+plazaName(pid).toUpperCase(),'#ff9a3c');
+  }
+  function onBattle(o){
+    const tp=plazaPos(o.plaza); if(!tp) return;
+    const atkOwner=o.by==='player'?'player':o.rid;
+    const opts=S.plazas.filter(p=>p.owner===atkOwner&&p.id!==o.plaza);
+    let ox=tp.x-70, oy=tp.y-70;
+    if(opts.length){ let best=null,bd=1e18;
+      for(const p of opts){ const q=plazaPos(p.id); if(!q) continue;
+        const d=(q.x-tp.x)*(q.x-tp.x)+(q.y-tp.y)*(q.y-tp.y); if(d<bd){bd=d;best=q;} }
+      if(best){ ox=best.x; oy=best.y; } }
+    const col=o.by==='player'?'#ffd75e':ownerColor(o.rid);
+    const dots=[]; for(let i=0;i<4;i++) dots.push({sx:ox+rand(-16,16),sy:oy+rand(-16,16),dl:rand(0,0.22)});
+    const parts=[]; for(let i=0;i<14;i++) parts.push({a:rand(0,Math.PI*2),sp:rand(20,70)});
+    if(anims.length>8) anims.shift();
+    const t0=performance.now();
+    anims.push({t0,dur:2000,draw(c,now,p){
+      if(p<0.55){ const q=p/0.55;
+        for(const d of dots){ const qq=clamp((q-d.dl)/(1-d.dl),0,1);
+          const x=d.sx+(tp.x-d.sx)*qq, y=d.sy+(tp.y-d.sy)*qq;
+          c.fillStyle=col; c.beginPath(); c.arc(x,y,3.5,0,7); c.fill(); }
+      } else { const q=(p-0.55)/0.45;
+        c.strokeStyle='rgba(255,215,94,'+(1-q).toFixed(3)+')'; c.lineWidth=3;
+        c.beginPath(); c.arc(tp.x,tp.y,6+q*36,0,7); c.stroke();
+        c.strokeStyle='rgba(224,82,68,'+(1-q).toFixed(3)+')'; c.lineWidth=2;
+        c.beginPath(); c.arc(tp.x,tp.y,4+q*24,0,7); c.stroke();
+        for(const pt of parts){ const dd=q*pt.sp;
+          c.fillStyle='rgba(255,200,90,'+(1-q).toFixed(3)+')';
+          c.beginPath(); c.arc(tp.x+Math.cos(pt.a)*dd,tp.y+Math.sin(pt.a)*dd,2.5,0,7); c.fill(); }
+      }
+    }});
+    pings.push({x:tp.x,y:tp.y,color:(o.won&&o.by==='player')?'#d4af37':'#e05244',t0:t0+1100,dur:1300,maxR:48});
+  }
+  function onCapture(pid){
+    const pos=plazaPos(pid); if(!pos) return;
+    pings.push({x:pos.x,y:pos.y,color:'#d4af37',t0:performance.now(),dur:1500,maxR:54});
+    bannerIt(plazaName(pid).toUpperCase()+' — YOURS NOW','#d4af37');
+  }
+  function onRaid(pid){
+    raidFlashAt=performance.now();
+    if(pid){ const pos=plazaPos(pid);
+      if(pos) pings.push({x:pos.x,y:pos.y,color:'#e05244',t0:performance.now(),dur:2200,maxR:72}); }
+    bannerIt('FED RAID','#e05244');
+  }
+  function onRivalAct(rid,pid,kind){
+    let pos=pid?plazaPos(pid):null;
+    if(!pos){ const rp=S.plazas.find(p=>p.owner===rid); pos=rp?plazaPos(rp.id):null; }
+    if(!pos) return;
+    pings.push({x:pos.x,y:pos.y,color:ownerColor(rid),t0:performance.now(),dur:1200,maxR:40});
+  }
+  function onEvent(id,pid){
+    const pos=pid?plazaPos(pid):null;
+    if(pos) pings.push({x:pos.x,y:pos.y,color:'#e8b73a',t0:performance.now(),dur:1400,maxR:44});
+    const msgs={
+      festival:['FESTIVAL SEASON — MDMA x1.8','#8fe08a'],
+      snitch:['SNITCH — FEDS WATCHING NEXT WEEK','#e05244'],
+      surveillance:['SURVEILLANCE VAN ON YOUR STREET','#e05244'],
+      od:['OVERDOSE CRISIS','#e05244'],
+      lab_fire:['LAB FIRE','#ff9a3c'],
+      bribe:['BRIBE PAID — HEAT DOWN','#d4af37'],
+      launder:['MONEY LAUNDERED','#d4af37']
+    };
+    const m=msgs[id]; if(m) bannerIt(m[0],m[1]);
+  }
+  function skipAll(){ anims=[]; popups=[]; pings=[]; shipments=[]; banner=null; raidFlashAt=0; }
+  function reset(){ skipAll(); cashShown=0; for(const k in dispColor) delete dispColor[k]; }
+
+  /* ----- mount / HUD / plaza popup ----- */
+  function hud(){
+    const el=document.getElementById('maphud'); if(!el||!S) return;
+    const heatPct=Math.round(S.heat);
+    const heatColor=S.heat<40?'var(--green)':S.heat<70?'var(--gold)':'var(--red)';
+    if(!cashShown) cashShown=S.cash;
+    el.innerHTML=
+    '<div class="statgrid" style="margin-bottom:10px">'+
+      '<div class="stat"><div class="lbl">Week</div><div class="val">'+S.week+'</div></div>'+
+      '<div class="stat"><div class="lbl">Cash</div><div class="val gold" id="mh-cash">$'+fmt(cashShown)+'</div></div>'+
+      '<div class="stat"><div class="lbl">Heat '+heatPct+'</div><div class="heatbar"><div style="width:'+heatPct+'%;background:'+heatColor+'"></div></div><div class="est">100 = raid</div></div>'+
+      '<div class="stat"><div class="lbl">Empire</div><div class="val">$'+fmt(empireValue())+'</div><div class="est">'+myPlazas().length+'/9 plazas · goal $250k</div></div>'+
+    '</div>'+
+    (S.fedWatch===S.week?'<div class="card"><span class="bad"><b>FEDS WATCHING</b> — sell nothing this week or the raid comes.</span></div>':'');
+  }
+  function mount(){
+    cv=document.getElementById('mapcanvas');
+    if(!cv) return;
+    ctx=cv.getContext('2d');
+    ctx.setTransform(2,0,0,2,0,0);
+    cv.style.width='100%'; cv.style.height='auto'; cv.style.display='block';
+    cv.onpointerdown=onTap;
+    rebase();
+    hud();
+    if(!running){ running=true; rafId=requestAnimationFrame(frame); }
+  }
+  function onTap(e){
+    skipAll(); // every animation is instantly skippable — tap clears all
+    if(!cv||!S) return;
+    const r=cv.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
+    for(const p of S.plazas){
+      const pos=plazaPos(p.id); if(!pos) continue;
+      const dx=x-pos.x, dy=y-pos.y;
+      if(dx*dx+dy*dy<32*32){ openPlazaPopup(p.id); return; }
+    }
+  }
+  function openPlazaPopup(pid){
+    const p=S.plazas.find(x=>x.id===pid); if(!p) return;
+    let info='<p>'+ownerBadge(p)+' '+traitChip(p)+'</p><p class="dim">'+esc(TRAITS[p.trait].desc)+'</p>';
+    const choices=[];
+    if(p.owner==='player'){
+      info+='<div class="kv"><span>Lab level</span><span>'+p.level+'/3 · '+p.slotsTotal+' slots</span></div>';
+      choices.push({label:'Manage labs',fn:()=>{ G.tab('prod'); }});
+    } else if(p.owner==='neutral'){
+      info+='<div class="kv"><span>Price</span><span>$'+fmt(p.price)+'</span></div>';
+      choices.push({label:'Buy — $'+fmt(p.price),fn:()=>{ buyPlaza(pid); }});
+    } else {
+      info+='<div class="kv"><span>Held by</span><span>'+esc(RIVALS[p.owner].name)+'</span></div>'+
+            '<div class="kv"><span>Garrison</span><span>~'+p.garrison+'</span></div>'+
+            (p.cokeLab?'<p class="goldt"><b>COKE LAB</b> — capture it to produce cocaine.</p>':'');
+      choices.push({label:'Hit this plaza',fn:()=>{ G.openAttack(pid); }});
+    }
+    choices.push({label:'Close',cls:'secondary',fn:()=>{}});
+    card({title:p.name,body:info,choices});
+  }
+  return { mount, hud, reset, skipAll, onSale, onProduce, onBoom, onBattle,
+           onCapture, onRaid, onRivalAct, onEvent,
+           get errors(){ return drawErrors; } };
+})();
+
 /* ---------------- actions ---------------- */
 function afterAction(){ save(); checkEnd(); render(); }
 
@@ -306,17 +720,20 @@ function sellDrug(drugId, amount, routeId){
   if (amount<=0){ log('Nothing to sell.','dim'); return; }
   const route = ROUTES.find(r=>r.id===routeId) || ROUTES[0];
   S.stash[drugId] -= amount;
+  let intercepted=false, rev=0;
   if (Math.random() < shipRisk(route, drugId)){
+    intercepted=true;
     S.heat = Math.min(100, S.heat+8);
     log('INTERCEPTED: '+amount+' '+DRUGS[drugId].name+' seized on '+route.name+'. +8 heat.','bad');
   } else {
-    const rev = amount * unitPrice(drugId, route.id);
+    rev = amount * unitPrice(drugId, route.id);
     S.cash += rev; S.stats.earned += rev;
     const hg = DRUGS[drugId].heat10 * amount/10;
     S.heat = Math.min(100, S.heat+hg);
     S.soldThisWeek = true;
     log('Sold '+amount+' '+DRUGS[drugId].name+' via '+route.name+' for $'+fmt(rev)+'. (+'+hg.toFixed(1)+' heat)','good');
   }
+  fx(m=>m.onSale({drug:drugId, amount, route:route.id, intercepted, rev}));
   afterAction();
 }
 
@@ -392,6 +809,7 @@ function launder(){
   const fee = Math.round(over*0.10);
   S.cash -= fee; S.launderedThisWeek = true;
   log('Laundered $'+fmt(over)+' through the car wash. Fee $'+fmt(fee)+'. No heat this week.','good');
+  fx(m=>m.onEvent('launder', 'southside'));
   afterAction();
 }
 
@@ -401,6 +819,7 @@ function bribe(){
   if (S.cash<c){ log('Not enough cash for a bribe.','bad'); return; }
   S.cash -= c; S.heat = Math.max(0, S.heat-15);
   log('Paid off the right people (-$'+fmt(c)+'). Heat -15.','good');
+  fx(m=>m.onEvent('bribe', 'southside'));
   afterAction();
 }
 
@@ -422,6 +841,7 @@ function buyPlaza(plazaId){
   S.cash -= p.price;
   log('Bought '+p.name+' ('+TRAITS[p.trait].name+') for $'+fmt(p.price)+'.','good');
   p.owner='player'; p.price=0;
+  fx(m=>m.onCapture(pid));
   afterAction();
 }
 
@@ -449,6 +869,7 @@ function attackPlaza(plazaId, sent){
     S.stats.battlesWon++;
     S.rivals[rid].sic = Math.max(0, S.rivals[rid].sic - Math.ceil(sent*0.3));
     log('Took '+p.name+' from '+RIVALS[rid].name+'. Lost '+lost+' sicarios. (+10 heat)','good');
+    fx(m=>m.onBattle({plaza:pid, won:true, by:'player', rid}));
     card({title:p.name+' TAKEN',
       body:'<p>Your crew stormed '+esc(p.name)+' and planted the flag. '+lost+' of '+sent+' sicarios didn\'t make it.</p><p>Seized '+seized+' '+DRUGS[drug].name+' from their stash.</p>'+extra+'<p class="dim">Trait: '+TRAITS[p.trait].name+' — '+TRAITS[p.trait].desc+'</p>',
       choices:[{label:'Keep moving', fn:()=>{ afterAction(); }}]});
@@ -458,6 +879,7 @@ function attackPlaza(plazaId, sent){
     S.stats.battlesLost++;
     S.rivals[rid].aggro += 2;
     log('Hit on '+p.name+' failed. Lost '+lost+' sicarios. (+10 heat)','bad');
+    fx(m=>m.onBattle({plaza:pid, won:false, by:'player', rid}));
     card({title:'HIT FAILED',
       body:'<p>'+esc(p.name)+'\'s garrison held. You lost '+lost+' of '+sent+' sicarios.</p><p class="dim">'+RIVALS[rid].name+' won\'t forget this.</p>',
       choices:[{label:'Fall back', fn:()=>{ afterAction(); }}]});
@@ -481,6 +903,7 @@ function rivalAttack(rid){
     const lost = randi(1,2);
     S.sicarios = Math.max(0, S.sicarios-lost);
     log('Repelled '+RIVALS[rid].name+'\'s hit on '+target.name+'. Lost '+lost+' sicarios.','good');
+    fx(m=>m.onBattle({plaza:target.id, won:true, by:'rival', rid}));
     card({title:'HIT REPELLED',
       body:'<p>'+RIVALS[rid].name+' came for '+esc(target.name)+' with '+force+' men. Your crew sent them home. You lost '+lost+' sicarios.</p>',
       choices:[{label:'Good', fn:()=>{ afterAction(); }}]});
@@ -490,6 +913,7 @@ function rivalAttack(rid){
     target.owner = rid; target.garrison = randi(3,6);
     target.slots = new Array(target.slotsTotal).fill(null); target.level = 1;
     log('Lost '+target.name+' to '+RIVALS[rid].name+'.','bad');
+    fx(m=>m.onBattle({plaza:target.id, won:false, by:'rival', rid}));
     card({title:target.name+' LOST',
       body:'<p>'+RIVALS[rid].name+' overran '+esc(target.name)+'. You lost '+lost+' sicarios in the retreat.</p>'+(target.id==='southside'?'<p class="bad">That was your home turf.</p>':''),
       choices:[{label:'Regroup', fn:()=>{ afterAction(); }}]});
@@ -509,6 +933,7 @@ function scheme(rid){
       log(RIVALS[rid].name+' hijacked '+n+' '+DRUGS[big].name+' from your stash!','bad');
     } else log(RIVALS[rid].name+' tried to hijack a shipment — nothing to take.','dim');
   }
+  fx(m=>m.onRivalAct(rid, null, 'scheme'));
 }
 
 function offerTruce(rid){
@@ -539,9 +964,10 @@ function rivalTurns(){
       const p = rPlazas[randi(0,rPlazas.length-1)];
       p.garrison = Math.min(14, p.garrison+g);
       log(RIVALS[rid].name+' is digging in.','dim');
+      fx(m=>m.onRivalAct(rid, p.id, 'expand'));
     }
     else if (roll < ai.attack+ai.expand+ai.scheme){ scheme(rid); }
-    else if (roll < ai.attack+ai.expand+ai.scheme+ai.truce){ offerTruce(rid); }
+    else if (roll < ai.attack+ai.expand+ai.scheme+ai.truce){ fx(m=>m.onRivalAct(rid, null, 'truce')); offerTruce(rid); }
   }
   if (S.gameOver) return;
 }
@@ -575,6 +1001,7 @@ function runEvent(id){
     case 'surveillance':
       if (S.soldThisWeek){ S.heat=Math.min(100,S.heat+8); log('The surveillance van caught movement. +8 heat.','bad'); }
       else log('You went quiet. The surveillance van moved on.','good');
+      fx(m=>m.onEvent('surveillance', null));
       break;
     case 'connect_discount':
       S.cokeDiscount = true;
@@ -616,6 +1043,7 @@ function runEvent(id){
       if (methPlazas.length && S.cash>=2000){ S.cash-=2000; log('A meth lab caught fire. $2,000 in damage, nobody talks about it.','bad'); }
       else if (methPlazas.length){ log('A meth lab caught fire and you can\'t cover repairs. The crew is nervous.','bad'); S.heat=Math.min(100,S.heat+4); }
       else log('A rival\'s lab went up in smoke. Not yours. Lucky.','dim');
+      fx(m=>m.onEvent('lab_fire', methPlazas.length?methPlazas[0].id:null));
       break;
     }
     case 'snitch_warning':
@@ -624,7 +1052,9 @@ function runEvent(id){
         choices:[
           {label:'Pay $5,000', fn:()=>{ if(S.cash>=5000){ S.cash-=5000; log('Buried the snitch\'s story. -$5,000.','good'); } else { S.fedWatch=S.week+1; log('Couldn\'t pay — feds will be watching NEXT week. Sell nothing.','bad'); } afterAction(); }},
           {label:'Risk it (lay low next week)', cls:'secondary', fn:()=>{ S.fedWatch=S.week+1; log('Feds will be watching NEXT week. Sell nothing or the raid comes.','dim'); afterAction(); }}
-        ]}); break;
+        ]});
+      fx(m=>m.onEvent('snitch', null));
+      break;
     case 'war_rumor': {
       const alive = Object.keys(RIVALS).filter(rid=>S.plazas.some(p=>p.owner===rid));
       if (alive.length){ const rid=alive[randi(0,alive.length-1)]; for(const p of S.plazas.filter(p=>p.owner===rid)) p.garrison=Math.min(14,p.garrison+2); log('Rumors of war: '+RIVALS[rid].name+' is mobilizing (+2 garrison everywhere).','bad'); }
@@ -657,6 +1087,7 @@ function doRaid(reason){
   const mine = myPlazas();
   const others = mine.filter(p=>p.id!=='southside');
   if (!others.length){
+    fx(m=>m.onRaid(null));
     gameOver(false, (reason?reason+' ':'')+'FED RAID on your last plaza. The empire is ash.');
     return;
   }
@@ -664,6 +1095,7 @@ function doRaid(reason){
   v.owner='neutral'; v.price=15000; v.level=1;
   v.slots = new Array(v.slotsTotal).fill(null);
   log('FED RAID — seized '+Math.round(stashLoss*100)+'% of stash, $'+fmt(lostCash)+' cash, and '+v.name+'.','bad');
+  fx(m=>m.onRaid(v.id));
   card({title:'FED RAID',
     body:'<p>'+esc(reason||'The feds kicked in doors across the city.')+'</p><p>Lost <b>'+Math.round(stashLoss*100)+'%</b> of stash, <b>$'+fmt(lostCash)+'</b> cash, and <b>'+esc(v.name)+'</b>.</p>'+(S.lawyer?'<p class="good">Your lawyer kept the losses to half.</p>':''),
     choices:[{label:'Rebuild', fn:()=>{ afterAction(); }}]});
@@ -701,6 +1133,7 @@ function endWeek(){
   // production
   for (const p of myPlazas()){
     const mult = 1+0.5*(p.level-1);
+    const prodOut=[];
     p.slots.forEach((drugId,i)=>{
       if (!drugId) return;
       if (!canProduce(drugId)){ p.slots[i]=null; return; }
@@ -708,17 +1141,20 @@ function endWeek(){
       if (d.volatile && Math.random()<0.03){
         S.cash = Math.max(0, S.cash-2000);
         log('LAB EXPLOSION at '+p.name+'! Lost the week\'s output and $2,000 in damage.','bad');
+        fx(m=>m.onBoom(p.id));
         return;
       }
       const out = Math.round(d.output*mult), cost = out*d.cost;
-      if (S.cash>=cost){ S.cash-=cost; S.stash[drugId]=(S.stash[drugId]||0)+out; }
+      if (S.cash>=cost){ S.cash-=cost; S.stash[drugId]=(S.stash[drugId]||0)+out; prodOut.push({drug:drugId,out}); }
       else log(p.name+' slot '+(i+1)+' idled — couldn\'t cover $'+fmt(cost)+'.','bad');
     });
+    if (prodOut.length) fx(m=>m.onProduce(p.id, prodOut));
   }
   // fentanyl overdose risk
   if ((S.stash.fentanyl||0)>=20 && Math.random()<0.04){
     S.heat = Math.min(100, S.heat+15); S.fentCrash = 2;
     log('OVERDOSE CLUSTER from your fentanyl. +15 heat, buyers spooked (-20% price, 2 wks).','bad');
+    fx(m=>m.onEvent('od', null));
   }
   // dirty money
   if (S.cash>50000 && !S.launderedThisWeek){
@@ -743,13 +1179,14 @@ function endWeek(){
   if (S.undercut>0) S.undercut--;
   S.prices = rollPrices();
   S.week++;
-  if (S.week%8===0){ S.festival=2; log('FESTIVAL SEASON — MDMA sells at x1.8 for 2 weeks!','good'); }
+  if (S.week%8===0){ S.festival=2; log('FESTIVAL SEASON — MDMA sells at x1.8 for 2 weeks!','good'); fx(m=>m.onEvent('festival', null)); }
   save(); checkEnd(); render();
 }
 
 /* ---------------- new game ---------------- */
 function newGame(){
   S = freshState();
+  MapFX.reset();
   log('A new empire rises. Start small, think big.','goldt');
   save();
   if (!TEST_MODE){ document.getElementById('gameover').classList.remove('open'); render(); }
@@ -779,8 +1216,24 @@ function renderTabs(){
 function render(){
   if (TEST_MODE) return;
   renderTabs();
-  const R = { dash:rDash, market:rMarket, prod:rProd, routes:rRoutes, war:rWar, plazas:rPlazas }[tab] || rDash;
+  const R = { map:rMap, dash:rDash, market:rMarket, prod:rProd, routes:rRoutes, war:rWar, plazas:rPlazas }[tab] || rMap;
+  // keep the live canvas across actions: just refresh the HUD, the map redraws itself
+  if (tab==='map' && document.getElementById('mapcanvas')){ MapFX.hud(); return; }
   document.getElementById('screen').innerHTML = R();
+  if (tab==='map') MapFX.mount();
+}
+
+function rMap(){
+  return '<div class="segctl"><button class="active">Map</button><button onclick="G.tab(\'dash\')">Classic</button></div>'+
+  '<div id="maphud"></div>'+
+  '<canvas id="mapcanvas" width="960" height="1120"></canvas>'+
+  '<div class="card"><h3>Legend</h3><div>'+
+    '<span class="chip"><span class="dot" style="background:#d4af37"></span>You</span>'+
+    '<span class="chip"><span class="dot" style="background:#e05244"></span>Los Buitres</span>'+
+    '<span class="chip"><span class="dot" style="background:#5aa9e0"></span>La Familia Serrano</span>'+
+    '<span class="chip"><span class="dot" style="background:#b06ae0"></span>Los Dientes</span>'+
+    '<span class="chip"><span class="dot" style="background:#8f8f8f"></span>Neutral</span>'+
+  '</div><p class="dim" style="margin:8px 0 0">Tap a plaza for intel and actions. Tap empty map to skip animations. Red glow = heat.</p></div>';
 }
 
 function rDash(){
